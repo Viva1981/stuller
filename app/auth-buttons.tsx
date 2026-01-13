@@ -22,11 +22,15 @@ export default function AuthButtons() {
     };
   }, []);
 
-  const login = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-    });
-  };
+const login = async () => {
+  await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: window.location.origin,
+    },
+  });
+};
+
 
   const logout = async () => {
     await supabase.auth.signOut();
