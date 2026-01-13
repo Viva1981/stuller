@@ -32,9 +32,11 @@ const login = async () => {
 };
 
 
-  const logout = async () => {
-    await supabase.auth.signOut();
-  };
+ const logout = async () => {
+  await supabase.auth.signOut({ scope: "global" });
+  window.location.href = "/";
+};
+
 
   const buttonStyle = {
     padding: "10px 16px",
