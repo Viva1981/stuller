@@ -4,9 +4,8 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 
-
 export default async function ProtectedPage() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -24,7 +23,7 @@ export default async function ProtectedPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // 🔒 HA NINCS USER → KIBASSZUK
+  // 🔒 HA NINCS USER → VISSZA FŐOLDALRA
   if (!user) {
     redirect("/");
   }
@@ -35,3 +34,4 @@ export default async function ProtectedPage() {
     </main>
   );
 }
+
