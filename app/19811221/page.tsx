@@ -1,31 +1,31 @@
-export const dynamic = "force-dynamic";
+"use client";
 
-import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
+import { useEffect, useState } from "react";
+import { supabase } from "../lib/supabase";
+import { useRouter } from "next/navigation";
 
-export default async function ProtectedPage() {
-  const cookieStore = await cookies();
+export default function ProtectedPage() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [allowed, setAllowed] = useState(false);
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-      },
-    }
-  );
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (!data.user) {
+        router.replace("/");
+      } else {
+        setAllowed(true);
+      }
+      setLoading(false);
+    });
+  }, [router]);
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  if (loading) {
+    return <p style={{ padding: "40px" }}>Ellenőrzés…</p>;
+  }
 
-  // 🔒 HA NINCS USER → VISSZA FŐOLDALRA
-  if (!user) {
-    redirect("/");
+  if (!allowed) {
+    return null;
   }
 
   return (
