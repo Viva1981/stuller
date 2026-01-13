@@ -38,5 +38,6 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/19811221"],
+  matcher: ["/19811221/:path*"],
 };
+
