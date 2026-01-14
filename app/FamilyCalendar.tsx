@@ -10,18 +10,22 @@ export default function FamilyCalendar() {
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   
-  // Form állapotok
   const [title, setTitle] = useState('');
   const [member, setMember] = useState('Zsolt');
   const [date, setDate] = useState('');
 
   const fetchEvents = async () => {
+    setLoading(true);
     const { data, error } = await supabase
       .from('events')
       .select('*')
       .order('event_date', { ascending: true });
     
-    if (!error) setEvents(data || []);
+    if (error) {
+      console.error("Hiba az adatok lekérésekor:", error.message);
+    } else {
+      setEvents(data || []);
+    }
     setLoading(false);
   };
 
@@ -31,22 +35,37 @@ export default function FamilyCalendar() {
 
   const handleAddEvent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !date) return;
+    if (!title || !date) {
+      alert("Kérlek töltsd ki a címet és a dátumot!");
+      return;
+    }
 
     const { error } = await supabase
       .from('events')
-      .insert([{ title, event_date: date, member_name: member, category: 'általános' }]);
+      .insert([{ 
+        title: title, 
+        event_date: date, 
+        member_name: member, 
+        category: 'általános' 
+      }]);
 
-    if (!error) {
+    if (error) {
+      alert("Hiba a mentés során: " + error.message);
+    } else {
       setTitle('');
+      setDate('');
       setShowAddForm(false);
       fetchEvents();
     }
   };
 
   const deleteEvent = async (id: string) => {
-    await supabase.from('events').delete().eq('id', id);
-    fetchEvents();
+    const { error } = await supabase.from('events').delete().eq('id', id);
+    if (error) {
+      alert("Hiba a törlésnél: " + error.message);
+    } else {
+      fetchEvents();
+    }
   };
 
   const getMemberColor = (name: string) => {
@@ -74,57 +93,56 @@ export default function FamilyCalendar() {
         </button>
       </div>
 
-      {/* ÚJ ESEMÉNY FORM */}
       <AnimatePresence>
         {showAddForm && (
           <motion.form 
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
             onSubmit={handleAddEvent}
-            className="overflow-hidden bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-4"
+            className="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-4 shadow-2xl"
           >
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-black">
               <input 
                 type="text" placeholder="Mi történik?" 
                 value={title} onChange={(e) => setTitle(e.target.value)}
-                className="bg-slate-950 border border-slate-800 p-3 rounded-xl focus:outline-none focus:border-emerald-500 transition-colors"
+                className="bg-white p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
               <select 
                 value={member} onChange={(e) => setMember(e.target.value)}
-                className="bg-slate-950 border border-slate-800 p-3 rounded-xl focus:outline-none"
+                className="bg-white p-3 rounded-xl focus:outline-none"
               >
                 {['Andrea', 'Zsolt', 'Adél', 'Zsombor'].map(m => <option key={m} value={m}>{m}</option>)}
               </select>
               <input 
                 type="date" 
                 value={date} onChange={(e) => setDate(e.target.value)}
-                className="bg-slate-950 border border-slate-800 p-3 rounded-xl focus:outline-none"
+                className="bg-white p-3 rounded-xl focus:outline-none"
               />
             </div>
-            <button className="w-full bg-emerald-600 p-3 rounded-xl font-bold hover:bg-emerald-500 transition-colors">Mentés</button>
+            <button type="submit" className="w-full bg-emerald-600 text-white p-3 rounded-xl font-bold hover:bg-emerald-500 transition-colors shadow-lg">
+              MENTÉS MOST
+            </button>
           </motion.form>
         )}
       </AnimatePresence>
 
-      {/* LISTA */}
       <div className="grid gap-4">
         {loading ? (
-          <div className="p-10 text-center text-slate-500 animate-pulse">Töltöm a családi titkokat...</div>
+          <div className="p-10 text-center text-slate-500">Adatok frissítése...</div>
         ) : events.length === 0 ? (
-          <div className="p-10 text-center bg-slate-900/20 border border-dashed border-slate-800 rounded-2xl text-slate-500">
-            Nincs még esemény. Kattints az Új Esemény gombra!
+          <div className="p-10 text-center bg-slate-900/20 border border-dashed border-slate-800 rounded-2xl text-slate-500 italic">
+            Még nincs esemény a naptárban.
           </div>
         ) : (
           <AnimatePresence mode='popLayout'>
-            {events.map((event, index) => (
+            {events.map((event) => (
               <motion.div
                 key={event.id}
                 layout
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                whileHover={{ scale: 1.01 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
                 className="bg-slate-900/50 border border-slate-800 p-5 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 backdrop-blur-md relative group"
               >
                 <div className="flex items-center gap-4">
@@ -138,12 +156,12 @@ export default function FamilyCalendar() {
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <span className={`px-4 py-1 rounded-full text-xs font-bold text-white shadow-lg flex items-center gap-1 ${getMemberColor(event.member_name)}`}>
-                    <User size={12} /> {event.member_name}
+                  <span className={`px-4 py-1 rounded-full text-xs font-bold text-white shadow-lg ${getMemberColor(event.member_name)}`}>
+                    {event.member_name}
                   </span>
                   <button 
                     onClick={() => deleteEvent(event.id)}
-                    className="opacity-0 group-hover:opacity-100 p-2 text-slate-500 hover:text-red-400 transition-all"
+                    className="p-2 text-slate-500 hover:text-red-400 transition-all"
                   >
                     <Trash2 size={18} />
                   </button>
