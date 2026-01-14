@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../supabase';
 
 export default function FamilyDashboard() {
   const [loading, setLoading] = useState(true);
@@ -72,13 +72,6 @@ export default function FamilyDashboard() {
             </div>
           </div>
         ))}
-      </div>
-
-      <div className="mt-12 max-w-6xl mx-auto p-8 rounded-2xl border border-slate-800 bg-slate-900/30 backdrop-blur-sm">
-        <h2 className="text-xl font-semibold mb-4 text-emerald-400 italic">"A maximumra tekerve..."</h2>
-        <p className="text-slate-400 leading-relaxed">
-          Ez az alap. Minden tag saját modult kaphat. A rendszer stabil.
-        </p>
       </div>
     </main>
   );
