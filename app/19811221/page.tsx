@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../supabase';
+import FamilyCalendar from '../FamilyCalendar'; // Beimportáljuk az új naptárt
+import { motion } from 'framer-motion';
 
 export default function FamilyDashboard() {
   const [loading, setLoading] = useState(true);
@@ -11,8 +13,8 @@ export default function FamilyDashboard() {
 
   useEffect(() => {
     const checkUser = async () => {
-      const { data: { user }, error } = await supabase.auth.getUser();
-      if (error || !user) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
         router.push('/');
       } else {
         setUser(user);
@@ -22,56 +24,40 @@ export default function FamilyDashboard() {
     checkUser();
   }, [router]);
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut({ scope: 'global' });
-    window.location.href = '/';
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-black">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-      </div>
-    );
-  }
-
-  const familyMembers = [
-    { name: 'Andrea', role: 'Anya', color: 'from-pink-500 to-rose-600' },
-    { name: 'Zsolt', role: 'Apa', color: 'from-blue-500 to-cyan-600' },
-    { name: 'Adél', role: 'Lányunk', color: 'from-purple-500 to-indigo-600' },
-    { name: 'Zsombor', role: 'Fiunk', color: 'from-orange-500 to-amber-600' },
-  ];
+  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-white">Betöltés...</div>;
 
   return (
-    <main className="min-h-screen p-4 md:p-8 bg-slate-950">
-      <header className="flex justify-between items-center mb-12 max-w-6xl mx-auto">
-        <div>
-          <h1 className="text-3xl font-bold text-white">Családi Irányítópult</h1>
-          <p className="text-slate-400">Szia, {user?.user_metadata?.full_name || 'Tag'}! 👋</p>
-        </div>
-        <button 
-          onClick={handleLogout}
-          className="px-4 py-2 bg-slate-800 hover:bg-red-900/40 text-sm rounded-md transition-colors border border-slate-700"
-        >
-          Kijelentkezés
-        </button>
+    <main className="min-h-screen p-4 md:p-10 bg-slate-950 text-white">
+      <header className="max-w-5xl mx-auto flex justify-between items-center mb-12">
+        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
+          <h1 className="text-4xl font-black bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
+            STULLER HUB
+          </h1>
+          <p className="text-slate-400 uppercase text-xs tracking-widest font-bold mt-1">
+            Üdv az irányítóközpontban, {user?.user_metadata?.full_name?.split(' ')[0]}!
+          </p>
+        </motion.div>
+        <button onClick={() => { supabase.auth.signOut(); window.location.href='/'; }} className="text-xs bg-slate-900 border border-slate-800 px-4 py-2 rounded-lg hover:bg-red-900/20 transition-all">KIJELENTKEZÉS</button>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
-        {familyMembers.map((member) => (
-          <div 
-            key={member.name}
-            className={`relative group overflow-hidden rounded-2xl p-6 bg-gradient-to-br ${member.color} shadow-lg transition-transform duration-300 hover:-translate-y-2 cursor-pointer`}
-          >
-            <div className="relative z-10">
-              <h3 className="text-2xl font-black text-white">{member.name}</h3>
-              <p className="text-white/80 font-medium">{member.role}</p>
-            </div>
-            <div className="absolute -right-4 -bottom-4 text-white/10 text-8xl font-black italic group-hover:scale-110 transition-transform">
-              {member.name[0]}
-            </div>
-          </div>
-        ))}
+      <div className="max-w-5xl mx-auto grid grid-cols-1 gap-12">
+        {/* NAPTÁR SZEKCIÓ */}
+        <section>
+          <FamilyCalendar />
+        </section>
+
+        {/* GYORS LINKEK / TAGOK */}
+        <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {['Andrea', 'Zsolt', 'Adél', 'Zsombor'].map((name) => (
+            <motion.div
+              key={name}
+              whileHover={{ y: -5 }}
+              className="bg-slate-900/30 border border-slate-800 p-4 rounded-xl text-center cursor-pointer hover:border-emerald-500/50 transition-colors"
+            >
+              <span className="font-bold text-slate-300">{name}</span>
+            </motion.div>
+          ))}
+        </section>
       </div>
     </main>
   );
