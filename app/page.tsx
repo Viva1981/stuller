@@ -1,13 +1,13 @@
 "use client";
 
-import { supabase } from '@/lib/supabase';
+import { supabase } from '../lib/supabase';
 
 export default function LoginPage() {
   const handleLogin = async () => {
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.origin + '/19811221',
+        redirectTo: typeof window !== 'undefined' ? window.location.origin + '/19811221' : '',
       },
     });
   };

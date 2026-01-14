@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '../../lib/supabase';
 
 export default function FamilyDashboard() {
   const [loading, setLoading] = useState(true);
@@ -11,8 +11,8 @@ export default function FamilyDashboard() {
 
   useEffect(() => {
     const checkUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error || !user) {
         router.push('/');
       } else {
         setUser(user);
@@ -47,7 +47,7 @@ export default function FamilyDashboard() {
       <header className="flex justify-between items-center mb-12 max-w-6xl mx-auto">
         <div>
           <h1 className="text-3xl font-bold text-white">Családi Irányítópult</h1>
-          <p className="text-slate-400">Szia, {user.user_metadata.full_name || 'Tag'}! 👋</p>
+          <p className="text-slate-400">Szia, {user?.user_metadata?.full_name || 'Tag'}! 👋</p>
         </div>
         <button 
           onClick={handleLogout}
@@ -77,8 +77,7 @@ export default function FamilyDashboard() {
       <div className="mt-12 max-w-6xl mx-auto p-8 rounded-2xl border border-slate-800 bg-slate-900/30 backdrop-blur-sm">
         <h2 className="text-xl font-semibold mb-4 text-emerald-400 italic">"A maximumra tekerve..."</h2>
         <p className="text-slate-400 leading-relaxed">
-          Ez az alap. Minden tag saját modult kaphat: naptár, privát jegyzetek, közös bevásárlólista vagy fotógaléria. 
-          A design készen áll a bővítésre.
+          Ez az alap. Minden tag saját modult kaphat. A rendszer stabil.
         </p>
       </div>
     </main>
