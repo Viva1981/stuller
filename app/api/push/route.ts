@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-// @ts-ignore: Megkerüljük a típusellenőrzést a build idejére
+// @ts-ignore
 import webpush from 'web-push';
 
 webpush.setVapidDetails(
@@ -9,22 +9,30 @@ webpush.setVapidDetails(
 );
 
 export async function POST(request: Request) {
+  console.log('--- PUSH API HÍVÁS ÉRKEZETT ---');
+  
   try {
     const { subscriptions, payload } = await request.json();
 
-    if (!subscriptions || !Array.isArray(subscriptions)) {
+    console.log(`Feliratkozók száma: ${subscriptions?.length}`);
+
+    if (!subscriptions || !Array.isArray(subscriptions) || subscriptions.length === 0) {
+      console.error('Nincsenek érvényes feliratkozók a kérésben.');
       return NextResponse.json({ error: 'Nincsenek feliratkozók' }, { status: 400 });
     }
 
     const notifications = subscriptions.map((sub: any) =>
       webpush.sendNotification(sub.subscription_json, JSON.stringify(payload))
+        .then(() => console.log('Értesítés sikeresen elküldve egy eszközre.'))
         .catch((err: any) => console.error('Küldési hiba egy eszközre:', err))
     );
 
     await Promise.all(notifications);
+    console.log('--- PUSH API FOLYAMAT VÉGE ---');
+    
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Push hiba:', error);
+    console.error('Kritikus Push hiba az API-ban:', error);
     return NextResponse.json({ error: 'Szerver hiba a küldéskor' }, { status: 500 });
   }
 }
