@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from './supabase';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, X, Trash2, ChevronLeft, ChevronRight, Calendar as CalendarIcon, RefreshCw, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { Plus, X, Trash2, ChevronLeft, ChevronRight, Calendar as CalendarIcon, RefreshCw, Eye, EyeOff, AlertCircle, Send } from 'lucide-react';
 import PushManager from './19811221/PushManager';
 
 const MEMBERS = [
@@ -29,7 +29,6 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
 
   const [selectedDate, setSelectedDate] = useState(formatDate(new Date()));
   const [pivotDate, setPivotDate] = useState(new Date());
-
   const [editId, setEditId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
@@ -46,87 +45,41 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
 
   const fetchEvents = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from('events').select('*').order('event_time', { ascending: true });
-    if (!error) setEvents(data || []);
+    const { data } = await supabase.from('events').select('*').order('event_time', { ascending: true });
+    if (data) setEvents(data);
     setLoading(false);
   };
 
-  const jumpToToday = () => {
-    const today = new Date();
-    setPivotDate(today);
-    setSelectedDate(formatDate(today));
-  };
-
-  const shiftView = (direction: number) => {
-    const newDate = new Date(pivotDate);
-    if (view === 'month') {
-      newDate.setMonth(pivotDate.getMonth() + direction);
-    } else {
-      newDate.setDate(pivotDate.getDate() + (direction * 7));
-    }
-    setPivotDate(newDate);
-  };
-
-  const getEventsForDate = (dateStr: string) => {
-    const targetDate = new Date(dateStr);
-    let filtered = events.filter(e => {
-      const eventStartDate = new Date(e.event_date);
-      if (formatDate(eventStartDate) > dateStr) return false;
-      if (e.event_date === dateStr) return true;
-      if (e.recurrence === 'daily') return true;
-      if (e.recurrence === 'weekly') return eventStartDate.getDay() === targetDate.getDay();
-      if (e.recurrence === 'workdays') {
-        const day = targetDate.getDay();
-        return day >= 1 && day <= 5;
-      }
-      return false;
-    });
-
-    if (filterMode === 'mine') {
-      filtered = filtered.filter(e => e.member_names?.includes(currentMemberName) || (e.is_duty && currentMemberName === 'Zsolt'));
-    }
-    return filtered;
-  };
-
-  const handleEditClick = (event: any) => {
-    setEditId(event.id);
-    setTitle(event.title);
-    setSelectedMembers(event.member_names || []);
-    setTime(event.event_time.substring(0, 5));
-    setPriority(event.priority);
-    setRecurrence(event.recurrence || 'none');
-    setShowAddForm(true);
-  };
-
-  // PUSH ÉRTESÍTÉS KÜLDÉSE - Teszt üzemmód (MINDENKINEK KÜLDÖD)
+  // --- PUSH ÉRTESÍTÉS KÜLDÉSE ---
   const sendPushNotifications = async (eventTitle: string) => {
-    // KIVETTÜK A SZŰRÉST, hogy te is megkapd teszteléskor!
-    const { data: subs } = await supabase
-      .from('push_subscriptions')
-      .select('subscription_json');
-
-    console.log('Küldés a következő feliratkozóknak:', subs);
+    console.log('Push indítása:', eventTitle);
+    const { data: subs } = await supabase.from('push_subscriptions').select('subscription_json');
 
     if (!subs || subs.length === 0) {
-      console.log('Nincs feliratkozó az adatbázisban.');
+      alert('Nincs feliratkozott eszköz az adatbázisban!');
       return;
     }
 
-    const response = await fetch('/api/push', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        subscriptions: subs,
-        payload: {
-          title: '🚨 FONTOS CSALÁDI ESEMÉNY!',
-          body: `${currentMemberName} beírt valamit: ${eventTitle}`,
-          url: `/19811221`
-        }
-      })
-    });
-
-    const result = await response.json();
-    console.log('API válasz:', result);
+    try {
+      const response = await fetch('/api/push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subscriptions: subs,
+          payload: {
+            title: '🚨 TESZT ÉRTESÍTÉS',
+            body: eventTitle,
+            url: `/19811221`
+          }
+        })
+      });
+      const resData = await response.json();
+      console.log('API Válasz:', resData);
+      if (resData.success) alert('Push elküldve a Google/Apple felé!');
+    } catch (err) {
+      console.error('Fetch hiba:', err);
+      alert('Hiba az API hívásakor!');
+    }
   };
 
   const handleAddEvent = async (customTitle?: string, isDutyEvent: boolean = false) => {
@@ -150,22 +103,38 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
       recurrence: isDutyEvent ? 'none' : recurrence
     };
 
-    let error;
     if (editId) {
-      const { error: err } = await supabase.from('events').update(eventData).eq('id', editId);
-      error = err;
+      await supabase.from('events').update(eventData).eq('id', editId);
     } else {
-      const { error: err } = await supabase.from('events').insert([eventData]);
-      error = err;
-      // Ha FONTOS, küldünk értesítést
-      if (!err && priority === 'fontos' && !isDutyEvent) {
-        sendPushNotifications(finalTitle);
+      const { data, error } = await supabase.from('events').insert([eventData]);
+      if (!error && priority === 'fontos') {
+        await sendPushNotifications(finalTitle);
       }
     }
 
-    if (!error) { 
-      setTitle(''); setEditId(null); setRecurrence('none'); setPriority('normál'); setShowAddForm(false); fetchEvents(); 
-    }
+    setTitle(''); setEditId(null); setRecurrence('none'); setPriority('normál'); setShowAddForm(false); fetchEvents();
+  };
+
+  const jumpToToday = () => { setPivotDate(new Date()); setSelectedDate(formatDate(new Date())); };
+  const shiftView = (direction: number) => {
+    const newDate = new Date(pivotDate);
+    view === 'month' ? newDate.setMonth(pivotDate.getMonth() + direction) : newDate.setDate(pivotDate.getDate() + (direction * 7));
+    setPivotDate(newDate);
+  };
+
+  const getEventsForDate = (dateStr: string) => {
+    const targetDate = new Date(dateStr);
+    let filtered = events.filter(e => {
+      const eventStartDate = new Date(e.event_date);
+      if (formatDate(eventStartDate) > dateStr) return false;
+      if (e.event_date === dateStr) return true;
+      if (e.recurrence === 'daily') return true;
+      if (e.recurrence === 'weekly') return eventStartDate.getDay() === targetDate.getDay();
+      if (e.recurrence === 'workdays') { const day = targetDate.getDay(); return day >= 1 && day <= 5; }
+      return false;
+    });
+    if (filterMode === 'mine') filtered = filtered.filter(e => e.member_names?.includes(currentMemberName) || (e.is_duty && currentMemberName === 'Zsolt'));
+    return filtered;
   };
 
   const renderDayCard = (date: Date, isCompact: boolean = false) => {
@@ -173,10 +142,6 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
     const active = dStr === selectedDate;
     const isToday = formatDate(new Date()) === dStr;
     const dayEvents = getEventsForDate(dStr);
-    const hasImportant = dayEvents.some(e => e.priority === 'fontos');
-    const hasDuty = dayEvents.some(e => e.is_duty);
-    const activeMemberColors = MEMBERS.filter(m => dayEvents.some(e => e.member_names?.includes(m.name)));
-
     return (
       <button key={dStr} onClick={() => setSelectedDate(dStr)}
         className={`relative flex-1 min-w-0 ${isCompact ? 'h-16' : 'h-20'} rounded-2xl flex flex-col items-center justify-center transition-all border shadow-sm ${
@@ -185,38 +150,37 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
       >
         <span className={`text-[9px] font-black uppercase ${active ? 'text-black/60' : 'text-slate-500'}`}>{date.toLocaleDateString('hu-HU', { weekday: 'short' })}</span>
         <span className="text-lg font-black">{date.getDate()}</span>
-        <div className="absolute left-1.5 top-1.5 flex flex-col gap-1">
-          {activeMemberColors.map(m => <div key={m.name} className={`w-2.5 h-2.5 rounded-full shadow-lg ${m.color}`} />)}
-        </div>
-        {hasImportant && (
-          <div className="absolute -top-1 -right-1 h-3.5 w-3.5 z-20">
-            <span className="animate-ping absolute h-full w-full rounded-full bg-red-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-red-600 shadow-md shadow-red-500/50 border border-slate-950"></span>
-          </div>
+        {dayEvents.some(e => e.priority === 'fontos') && (
+          <div className="absolute -top-1 -right-1 h-3 w-3 bg-red-600 rounded-full border border-slate-950 animate-pulse" />
         )}
-        {hasDuty && <div className="absolute bottom-1.5 right-1.5 w-3 h-3 bg-blue-500 rounded-full shadow-md shadow-blue-500/50" />}
-        {isToday && !active && <div className="absolute bottom-1 w-5 h-0.5 bg-emerald-500 rounded-full" />}
+        {isToday && !active && <div className="absolute bottom-1 w-4 h-0.5 bg-emerald-500 rounded-full" />}
       </button>
     );
   };
 
   return (
     <div className="space-y-4 max-w-4xl mx-auto">
-      {/* PUSH MANAGER */}
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        {/* TESZT GOMB - Ez direktben hívja az értesítést */}
+        <button 
+          onClick={() => sendPushNotifications("Kézi teszt üzenet 🚀")}
+          className="bg-zinc-800 text-zinc-400 p-2 rounded-xl hover:text-white transition-colors"
+          title="Push Teszt"
+        >
+          <Send size={16} />
+        </button>
         <PushManager userId={currentUser.id} />
       </div>
 
-      {/* 1. FEJLÉC GOMBOK */}
       <div className="flex items-center gap-2">
         <button onClick={() => { setEditId(null); setTitle(''); setShowAddForm(!showAddForm); }} 
-          className="flex-[2] bg-emerald-500 hover:bg-emerald-400 text-white font-black text-xs py-4 rounded-2xl shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95"
+          className="flex-[2] bg-emerald-500 text-white font-black text-xs py-4 rounded-2xl shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-all"
         >
           {showAddForm ? <X size={18}/> : <Plus size={18}/>} {showAddForm ? 'BEZÁRÁS' : 'ÚJ BEJEGYZÉS'}
         </button>
 
         <button onClick={() => handleAddEvent("Ügyelet", true)} 
-          className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black text-[10px] py-4 rounded-2xl shadow-lg transition-all active:scale-95 uppercase"
+          className="flex-1 bg-blue-600 text-white font-black text-[10px] py-4 rounded-2xl shadow-lg active:scale-95 transition-all uppercase"
         >
           Ügyelet
         </button>
@@ -229,12 +193,11 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
         </button>
       </div>
 
-      {/* 2. NAVIGÁCIÓ */}
       <div className="flex justify-between items-center bg-slate-900/40 p-2 rounded-2xl border border-slate-800/50 backdrop-blur-md">
         <div className="flex gap-1">
-          <button onClick={() => shiftView(-1)} className="p-2 hover:bg-slate-800 rounded-xl"><ChevronLeft size={20}/></button>
+          <button onClick={() => shiftView(-1)} className="p-2 hover:bg-slate-800 rounded-xl text-white"><ChevronLeft size={20}/></button>
           <button onClick={jumpToToday} className="px-4 py-1 text-xs font-black text-emerald-400">MA</button>
-          <button onClick={() => shiftView(1)} className="p-2 hover:bg-slate-800 rounded-xl"><ChevronRight size={20}/></button>
+          <button onClick={() => shiftView(1)} className="p-2 hover:bg-slate-800 rounded-xl text-white"><ChevronRight size={20}/></button>
         </div>
         <h3 className="text-sm font-black uppercase text-white">{pivotDate.toLocaleDateString('hu-HU', { month: 'long', year: 'numeric' })}</h3>
         <button onClick={() => setView(view === 'day' ? 'month' : 'day')} className="flex items-center gap-2 text-[10px] font-black bg-white text-black px-4 py-2 rounded-xl uppercase">
@@ -242,7 +205,6 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
         </button>
       </div>
 
-      {/* 3. KÁRTYÁK */}
       <div className="min-h-[160px]">
         {view === 'day' ? (
           <div className="flex justify-between gap-2">
@@ -260,53 +222,43 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
         )}
       </div>
 
-      {/* 4. FORM */}
       <AnimatePresence>
         {showAddForm && (
           <motion.form initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
             onSubmit={(e) => { e.preventDefault(); handleAddEvent(); }} className="bg-white p-6 rounded-[2.5rem] shadow-2xl text-black space-y-4"
           >
-            <input type="text" placeholder="Mi a program?" value={title} onChange={e => setTitle(e.target.value)} autoFocus className="w-full bg-slate-100 border-none p-4 rounded-2xl text-lg font-bold outline-none" />
-            
+            <input type="text" placeholder="Mi a program?" value={title} onChange={e => setTitle(e.target.value)} autoFocus className="w-full bg-slate-100 p-4 rounded-2xl text-lg font-bold outline-none border-none focus:ring-2 focus:ring-emerald-500" />
             <div className="flex flex-wrap gap-2">
               {MEMBERS.map(m => (
                 <button key={m.name} type="button" onClick={() => setSelectedMembers(prev => prev.includes(m.name) ? prev.filter(x => x !== m.name) : [...prev, m.name])}
-                  className={`px-4 py-2 rounded-xl text-xs font-black border-2 ${selectedMembers.includes(m.name) ? `bg-black text-white border-black` : 'bg-white text-slate-400 border-slate-100'}`}
+                  className={`px-4 py-2 rounded-xl text-xs font-black border-2 transition-all ${selectedMembers.includes(m.name) ? `bg-black text-white border-black` : 'bg-white text-slate-300 border-slate-100'}`}
                 >{m.name.toUpperCase()}</button>
               ))}
             </div>
-
             <div className="flex items-center gap-4">
-               <button 
-                type="button"
-                onClick={() => setPriority(priority === 'fontos' ? 'normál' : 'fontos')}
+               <button type="button" onClick={() => setPriority(priority === 'fontos' ? 'normál' : 'fontos')}
                 className={`flex-1 flex items-center justify-center gap-2 p-4 rounded-2xl font-black text-xs border-2 transition-all ${priority === 'fontos' ? 'bg-red-600 border-red-600 text-white' : 'bg-white border-slate-100 text-slate-400'}`}
-               >
-                 <AlertCircle size={16} /> FONTOS
-               </button>
+               ><AlertCircle size={16} /> FONTOS</button>
                <input type="time" value={time} onChange={e => setTime(e.target.value)} className="flex-1 bg-slate-100 p-4 rounded-2xl font-bold outline-none" />
             </div>
-
             <select value={recurrence} onChange={e => setRecurrence(e.target.value)} className="w-full bg-slate-100 p-4 rounded-2xl font-bold outline-none border-none text-xs uppercase tracking-widest">
                 <option value="none">Nincs ismétlés</option>
                 <option value="daily">Minden nap</option>
                 <option value="weekly">Minden héten</option>
                 <option value="workdays">Munkanapokon</option>
             </select>
-
-            <button className="w-full bg-black text-white p-5 rounded-2xl font-black text-sm uppercase tracking-widest">MENTÉS</button>
+            <button className="w-full bg-black text-white p-5 rounded-2xl font-black text-sm uppercase tracking-widest active:scale-95 transition-all">MENTÉS</button>
           </motion.form>
         )}
       </AnimatePresence>
 
-      {/* LISTA */}
       <div className="space-y-3">
         {getEventsForDate(selectedDate).length === 0 ? (
           <p className="text-slate-600 italic text-sm text-center py-4">Nincs bejegyzés.</p>
         ) : (
           getEventsForDate(selectedDate).map(e => (
-            <div key={e.id} className={`group p-4 rounded-3xl border flex items-center justify-between ${e.is_duty ? 'bg-blue-600/10 border-blue-500/20 shadow-inner' : e.priority === 'fontos' ? 'bg-red-600/10 border-red-500/20' : 'bg-slate-900/40 border-slate-800/50'}`}>
-              <div className="flex gap-4 items-center flex-1 cursor-pointer" onClick={() => handleEditClick(e)}>
+            <div key={e.id} className={`group p-4 rounded-3xl border flex items-center justify-between ${e.is_duty ? 'bg-blue-600/10 border-blue-500/20 shadow-inner' : e.priority === 'fontos' ? 'bg-red-600/10 border-red-500/20 shadow-lg shadow-red-900/10' : 'bg-slate-900/40 border-slate-800/50'}`}>
+              <div className="flex gap-4 items-center flex-1 cursor-pointer">
                 <span className="text-xs font-black text-slate-400 bg-slate-800 px-2 py-1 rounded-md">{e.event_time.substring(0,5)}</span>
                 <div>
                   <h4 className="text-md font-bold text-white flex items-center gap-2">
@@ -318,7 +270,7 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
                   </div>
                 </div>
               </div>
-              <button onClick={() => supabase.from('events').delete().eq('id', e.id).then(() => fetchEvents())} className="text-slate-600 hover:text-red-500 p-2"><Trash2 size={18}/></button>
+              <button onClick={() => supabase.from('events').delete().eq('id', e.id).then(() => fetchEvents())} className="text-slate-600 hover:text-red-500 p-2 transition-colors"><Trash2 size={18}/></button>
             </div>
           ))
         )}
