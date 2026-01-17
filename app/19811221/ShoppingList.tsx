@@ -11,14 +11,22 @@ export default function ShoppingList({ userName }: { userName: string }) {
 
   useEffect(() => {
     fetchItems()
+    
+    // Javított Realtime feliratkozás típus-kényszerítéssel
     const channel = supabase
       .channel('shopping_changes')
-      .on('postgres_changes', { event: '*', table: 'shopping_list' }, () => {
-        fetchItems()
-      })
+      .on(
+        'postgres_changes' as any, 
+        { event: '*', table: 'shopping_list' }, 
+        () => {
+          fetchItems()
+        }
+      )
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
+    return () => { 
+      supabase.removeChannel(channel) 
+    }
   }, [])
 
   async function fetchItems() {
