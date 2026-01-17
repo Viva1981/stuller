@@ -143,10 +143,12 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
     const isToday = formatDate(new Date()) === dStr;
     const dayEvents = getEventsForDate(dStr);
     
-    // Pöttyök kiszámítása
     const hasImportant = dayEvents.some(e => e.priority === 'fontos');
     const hasDuty = dayEvents.some(e => e.is_duty);
-    const activeMemberColors = MEMBERS.filter(m => dayEvents.some(e => e.member_names?.includes(m.name)));
+    
+    // JAVÍTOTT PÖTTY LOGIKA: Csak azokat a tagokat gyűjtjük, akik NEM ügyelet miatt vannak ott
+    const memberEvents = dayEvents.filter(e => !e.is_duty);
+    const activeMemberColors = MEMBERS.filter(m => memberEvents.some(e => e.member_names?.includes(m.name)));
 
     return (
       <button key={dStr} onClick={() => setSelectedDate(dStr)}
@@ -157,7 +159,7 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
         <span className={`text-[9px] font-black uppercase ${active ? 'text-black/60' : 'text-slate-500'}`}>{date.toLocaleDateString('hu-HU', { weekday: 'short' })}</span>
         <span className="text-lg font-black">{date.getDate()}</span>
         
-        {/* Bal felső: Tagok pöttyösei */}
+        {/* Bal felső: Tagok pöttyösei (ÜGYELET KIZÁRVA) */}
         <div className="absolute left-1.5 top-1.5 flex flex-col gap-0.5">
           {activeMemberColors.map(m => <div key={m.name} className={`w-2 h-2 rounded-full shadow-lg ${m.color}`} />)}
         </div>
@@ -205,7 +207,6 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
           <span className="mt-0.5">{filterMode === 'mine' ? 'Saját' : 'Összes'}</span>
         </button>
 
-        {/* Kilépés gomb visszatéve */}
         <button 
           onClick={async () => { await supabase.auth.signOut(); window.location.href = '/' }}
           className="bg-slate-900 border border-slate-800 p-4 rounded-2xl text-slate-500 hover:text-red-400 transition-colors"
