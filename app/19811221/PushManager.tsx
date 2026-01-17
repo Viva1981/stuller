@@ -6,6 +6,7 @@ import { supabase } from '../supabase'
 
 export default function PushManager({ userId }: { userId: string }) {
   const [isSubscribed, setIsSubscribed] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
 
   useEffect(() => {
     if ('serviceWorker' in navigator) {
@@ -20,35 +21,47 @@ export default function PushManager({ userId }: { userId: string }) {
   }
 
   async function subscribe() {
+    if (isProcessing) return
+    setIsProcessing(true)
+
     try {
       const registration = await navigator.serviceWorker.ready
       
-      // Javított camelCase változónevek:
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
       })
 
-      await supabase.from('push_subscriptions').upsert({
+      // FONTOS: .toJSON() kell, hogy a Supabase megértse a struktúrát!
+      const { error } = await supabase.from('push_subscriptions').upsert({
         user_id: userId,
-        subscription_json: subscription as any // A JSON típus miatt kényszerítjük
-      })
+        subscription_json: subscription.toJSON() 
+      }, { onConflict: 'user_id' })
+
+      if (error) throw error
 
       setIsSubscribed(true)
-      alert('Értesítések bekapcsolva! ✅')
-    } catch (error) {
-      console.error('Feliratkozási hiba:', error)
-      alert('Hiba történt a feliratkozáskor. Próbáld meg újra!')
+      alert('Szuper! Ez az eszköz mostantól kap értesítéseket. ✅')
+    } catch (error: any) {
+      console.error('Push hiba:', error)
+      alert('Hiba történt: ' + (error.message || 'Lehet, hogy letiltottad az értesítéseket?'))
+    } finally {
+      setIsProcessing(false)
     }
   }
 
   return (
     <button 
       onClick={subscribe}
-      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${isSubscribed ? 'bg-emerald-500/20 text-emerald-500' : 'bg-red-500 text-white animate-pulse'}`}
+      disabled={isProcessing}
+      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${
+        isSubscribed 
+          ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/30' 
+          : 'bg-red-500 text-white animate-pulse shadow-lg shadow-red-500/50'
+      }`}
     >
       {isSubscribed ? <Bell size={14} /> : <BellOff size={14} />}
-      {isSubscribed ? 'Értesítések aktívak' : 'Értesítések kellenek!'}
+      {isSubscribed ? 'Értesítések aktívak' : isProcessing ? 'Kapcsolódás...' : 'Értesítések kellenek!'}
     </button>
   )
 }
