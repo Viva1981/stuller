@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from './supabase';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, X, Trash2, ChevronLeft, ChevronRight, Target, Briefcase, Calendar as CalendarIcon } from 'lucide-react';
+import { Plus, X, Trash2, ChevronLeft, ChevronRight, Target, Briefcase, Calendar as CalendarIcon, Edit2 } from 'lucide-react';
 
 const MEMBERS = [
   { name: 'Andrea', color: 'bg-pink-500 shadow-pink-500/50' },
@@ -21,6 +21,7 @@ export default function FamilyCalendar() {
   const [pivotDate, setPivotDate] = useState(new Date());
 
   // Form states
+  const [editId, setEditId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [selectedMembers, setSelectedMembers] = useState<string[]>(['Zsolt']);
   const [time, setTime] = useState('08:00');
@@ -41,23 +42,57 @@ export default function FamilyCalendar() {
     setSelectedDate(today.toISOString().split('T')[0]);
   };
 
+  const shiftView = (direction: number) => {
+    const newDate = new Date(pivotDate);
+    if (view === 'month') {
+      newDate.setMonth(pivotDate.getMonth() + direction);
+    } else {
+      newDate.setDate(pivotDate.getDate() + (direction * 7));
+    }
+    setPivotDate(newDate);
+  };
+
+  const handleEditClick = (event: any) => {
+    setEditId(event.id);
+    setTitle(event.title);
+    setSelectedMembers(event.member_names || []);
+    setTime(event.event_time.substring(0, 5));
+    setPriority(event.priority);
+    setShowAddForm(true);
+  };
+
   const handleAddEvent = async (customTitle?: string, isDutyEvent: boolean = false) => {
     const finalTitle = isDutyEvent ? "Ügyelet" : title;
     if (!finalTitle && !isDutyEvent) return;
 
-    const { error } = await supabase.from('events').insert([{ 
+    // Ügyelet időpont logika
+    let finalTime = time;
+    if (isDutyEvent) {
+      const d = new Date(selectedDate);
+      const day = d.getDay(); // 0: Vasárnap, 6: Szombat
+      finalTime = (day === 0 || day === 6) ? "08:00" : "17:00";
+    }
+
+    const eventData = { 
       title: finalTitle, 
       event_date: selectedDate, 
-      event_time: isDutyEvent ? "00:00" : time, 
+      event_time: finalTime, 
       member_names: isDutyEvent ? [] : selectedMembers, 
       priority: isDutyEvent ? 'normál' : priority, 
       is_duty: isDutyEvent 
-    }]);
+    };
+
+    let error;
+    if (editId) {
+      const { error: err } = await supabase.from('events').update(eventData).eq('id', editId);
+      error = err;
+    } else {
+      const { error: err } = await supabase.from('events').insert([eventData]);
+      error = err;
+    }
 
     if (!error) { 
-      setTitle(''); 
-      setShowAddForm(false); 
-      fetchEvents(); 
+      setTitle(''); setEditId(null); setShowAddForm(false); fetchEvents(); 
     }
   };
 
@@ -71,7 +106,6 @@ export default function FamilyCalendar() {
     const start = new Date(pivotDate.getFullYear(), pivotDate.getMonth(), 1);
     const startDay = start.getDay() === 0 ? 6 : start.getDay() - 1;
     start.setDate(start.getDate() - startDay);
-
     for (let i = 0; i < 28; i++) { 
       days.push(new Date(start.getTime() + i * 24 * 60 * 60 * 1000));
     }
@@ -137,7 +171,7 @@ export default function FamilyCalendar() {
   return (
     <div className="space-y-4 max-w-4xl mx-auto">
       <div className="flex items-center gap-2">
-        <button onClick={() => setShowAddForm(!showAddForm)} 
+        <button onClick={() => { setEditId(null); setTitle(''); setShowAddForm(!showAddForm); }} 
           className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-white font-black text-xs py-4 rounded-2xl shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition-all active:scale-95"
         >
           {showAddForm ? <X size={18}/> : <Plus size={18}/>}
@@ -160,9 +194,9 @@ export default function FamilyCalendar() {
 
       <div className="flex justify-between items-center bg-slate-900/40 p-2 rounded-2xl border border-slate-800/50 backdrop-blur-md">
         <div className="flex gap-1">
-          <button onClick={() => setPivotDate(new Date(pivotDate.setDate(pivotDate.getDate() - 7)))} className="p-2 hover:bg-slate-800 rounded-xl"><ChevronLeft size={20}/></button>
+          <button onClick={() => shiftView(-1)} className="p-2 hover:bg-slate-800 rounded-xl"><ChevronLeft size={20}/></button>
           <button onClick={jumpToToday} className="px-4 py-1 text-xs font-black text-emerald-400 hover:bg-emerald-400/10 rounded-lg transition-colors">MA</button>
-          <button onClick={() => setPivotDate(new Date(pivotDate.setDate(pivotDate.getDate() + 7)))} className="p-2 hover:bg-slate-800 rounded-xl"><ChevronRight size={20}/></button>
+          <button onClick={() => shiftView(1)} className="p-2 hover:bg-slate-800 rounded-xl"><ChevronRight size={20}/></button>
         </div>
         <div className="text-center">
           <h3 className="text-sm font-black uppercase tracking-widest text-white">
@@ -195,6 +229,7 @@ export default function FamilyCalendar() {
             onSubmit={(e) => { e.preventDefault(); handleAddEvent(); }} 
             className="bg-white p-6 rounded-[2.5rem] space-y-4 shadow-2xl text-black"
           >
+            <h3 className="font-black text-xs uppercase tracking-widest text-slate-400">{editId ? 'Bejegyzés szerkesztése' : 'Új bejegyzés'}</h3>
             <input type="text" placeholder="Mi a program?" value={title} onChange={e => setTitle(e.target.value)} autoFocus
               className="w-full bg-slate-100 border-none p-4 rounded-2xl text-lg font-bold placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-emerald-500" />
             
@@ -217,7 +252,7 @@ export default function FamilyCalendar() {
             </div>
 
             <button className="w-full bg-black text-white p-5 rounded-2xl font-black text-sm uppercase tracking-[0.2em] shadow-xl active:scale-95 transition-transform">
-              MENTÉS A NAPLÓBA
+              {editId ? 'MÓDOSÍTÁSOK MENTÉSE' : 'MENTÉS A NAPLÓBA'}
             </button>
           </motion.form>
         )}
@@ -225,16 +260,17 @@ export default function FamilyCalendar() {
 
       <div className="space-y-3">
         {filteredEvents.length === 0 ? (
-          <p className="text-slate-600 italic text-sm px-2 py-4">Nincs bejegyzés erre a napra.</p>
+          <p className="text-slate-600 italic text-sm px-2 py-4 text-center">Nincs bejegyzés erre a napra.</p>
         ) : (
           filteredEvents.map(e => (
             <div key={e.id} className={`group p-4 rounded-3xl border transition-all flex items-center justify-between ${e.is_duty ? 'bg-blue-600/10 border-blue-500/20 shadow-inner' : e.priority === 'fontos' ? 'bg-red-600/10 border-red-500/20' : 'bg-slate-900/40 border-slate-800/50'}`}>
-              <div className="flex gap-4 items-center">
+              <div className="flex gap-4 items-center flex-1 cursor-pointer" onClick={() => handleEditClick(e)}>
                 <span className="text-xs font-black text-slate-400 bg-slate-800 px-2 py-1 rounded-md">{e.event_time.substring(0,5)}</span>
                 <div>
-                  <h4 className="text-md font-bold text-white flex items-center gap-2">
+                  <h4 className="text-md font-bold text-white flex items-center gap-2 leading-tight">
                     {e.is_duty && <Briefcase size={16} className="text-blue-400"/>}
                     {e.title}
+                    <Edit2 size={12} className="text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity" />
                   </h4>
                   <div className="flex gap-1.5 mt-2">
                     {e.member_names?.map((m: string) => (
@@ -243,7 +279,7 @@ export default function FamilyCalendar() {
                   </div>
                 </div>
               </div>
-              <button onClick={() => deleteEvent(e.id)} className="text-slate-600 hover:text-red-500 p-2 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={18}/></button>
+              <button onClick={() => deleteEvent(e.id)} className="text-slate-600 hover:text-red-500 p-2 transition-colors"><Trash2 size={18}/></button>
             </div>
           ))
         )}
