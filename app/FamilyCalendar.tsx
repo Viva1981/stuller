@@ -50,24 +50,27 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
     setLoading(false);
   };
 
-  // --- PUSH ÉRTESÍTÉS KÜLDÉSE ---
-const sendPushNotifications = async (eventTitle: string, eventTime: string, members: string[]) => {
+  // --- PUSH ÉRTESÍTÉS KÜLDÉSE (Most már 3 paraméterrel) ---
+  const sendPushNotifications = async (eventTitle: string, eventTime: string, members: string[]) => {
     const { data: subs } = await supabase.from('push_subscriptions').select('subscription_json');
     if (!subs || subs.length === 0) return;
 
-    await fetch('/api/push', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        subscriptions: subs,
-        payload: {
-          title: '🚨 ÚJ FONTOS PROGRAM',
-          // Formátum: [Tagok]: [Cím] - [Időpont]
-          body: `${members.join(', ')}: ${eventTitle} - ${eventTime}`,
-          url: `/19811221`
-        }
-      })
-    });
+    try {
+      await fetch('/api/push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subscriptions: subs,
+          payload: {
+            title: '🚨 FONTOS PROGRAM',
+            body: `${members.join(', ')}: ${eventTitle} - ${eventTime}`,
+            url: `/19811221`
+          }
+        })
+      });
+    } catch (err) {
+      console.error('Push hiba:', err);
+    }
   };
 
   const handleAddEvent = async (customTitle?: string, isDutyEvent: boolean = false) => {
@@ -94,9 +97,10 @@ const sendPushNotifications = async (eventTitle: string, eventTime: string, memb
     if (editId) {
       await supabase.from('events').update(eventData).eq('id', editId);
     } else {
-      const { data, error } = await supabase.from('events').insert([eventData]);
-      if (!error && priority === 'fontos') {
-        await sendPushNotifications(finalTitle);
+      const { error } = await supabase.from('events').insert([eventData]);
+      // JAVÍTVA: Itt adjuk át mind a 3 paramétert a mentéskor
+      if (!error && priority === 'fontos' && !isDutyEvent) {
+        await sendPushNotifications(finalTitle, finalTime, eventData.member_names);
       }
     }
 
@@ -149,11 +153,10 @@ const sendPushNotifications = async (eventTitle: string, eventTime: string, memb
   return (
     <div className="space-y-4 max-w-4xl mx-auto">
       <div className="flex justify-end gap-2">
-        {/* TESZT GOMB - Ez direktben hívja az értesítést */}
+        {/* JAVÍTVA: A Teszt gombnál is megadjuk mind a 3 paramétert */}
         <button 
-          onClick={() => sendPushNotifications("Kézi teszt üzenet 🚀")}
+          onClick={() => sendPushNotifications("Teszt üzenet 🚀", "Most", ["Rendszer"])}
           className="bg-zinc-800 text-zinc-400 p-2 rounded-xl hover:text-white transition-colors"
-          title="Push Teszt"
         >
           <Send size={16} />
         </button>
