@@ -1,19 +1,14 @@
 {
-  "name": "Stuller Family App",
-  "short_name": "StullerApp",
-  "description": "Stuller család privát irányítópultja",
+  "name": "Stuller Family",
+  "short_name": "Stuller",
+  "description": "Családi vezérlőpult",
   "start_url": "/19811221",
   "display": "standalone",
   "background_color": "#020617",
   "theme_color": "#020617",
   "icons": [
     {
-      "src": "https://img.icons8.com/fluency/144/home.png",
-      "sizes": "144x144",
-      "type": "image/png"
-    },
-    {
-      "src": "https://img.icons8.com/fluency/512/home.png",
+      "src": "https://cdn-icons-png.flaticon.com/512/553/553118.png",
       "sizes": "512x512",
       "type": "image/png"
     }
