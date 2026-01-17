@@ -28,7 +28,8 @@ export default function FamilyDashboard() {
     return 'Családtag';
   };
 
-  useEffect(() => {
+useEffect(() => {
+    // 1. Auth ellenőrzés (ez már benne van)
     const checkUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || !WHITELIST.includes(user.email || '')) {
@@ -40,6 +41,13 @@ export default function FamilyDashboard() {
       }
     };
     checkUser();
+
+    // 2. SERVICE WORKER REGISZTRÁCIÓ (Ezt add hozzá!)
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').then((reg) => {
+        console.log('SW regisztrálva:', reg.scope);
+      });
+    }
   }, [router]);
 
   if (loading) return (

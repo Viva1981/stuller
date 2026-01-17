@@ -20,19 +20,26 @@ export default function PushManager({ userId }: { userId: string }) {
   }
 
   async function subscribe() {
-    const registration = await navigator.serviceWorker.ready
-    const subscription = await registration.pushManager.subscribe({
-      user_visible_only: true,
-      application_server_key: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
-    })
+    try {
+      const registration = await navigator.serviceWorker.ready
+      
+      // Javított camelCase változónevek:
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+      })
 
-    await supabase.from('push_subscriptions').upsert({
-      user_id: userId,
-      subscription_json: subscription
-    })
+      await supabase.from('push_subscriptions').upsert({
+        user_id: userId,
+        subscription_json: subscription as any // A JSON típus miatt kényszerítjük
+      })
 
-    setIsSubscribed(true)
-    alert('Értesítések bekapcsolva ezen az eszközön! ✅')
+      setIsSubscribed(true)
+      alert('Értesítések bekapcsolva! ✅')
+    } catch (error) {
+      console.error('Feliratkozási hiba:', error)
+      alert('Hiba történt a feliratkozáskor. Próbáld meg újra!')
+    }
   }
 
   return (
