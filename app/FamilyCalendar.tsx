@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from './supabase';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, X, Trash2, ChevronLeft, ChevronRight, Target, Calendar as CalendarIcon, Edit2, RefreshCw, Eye, EyeOff } from 'lucide-react';
+import { Plus, X, Trash2, ChevronLeft, ChevronRight, Calendar as CalendarIcon, RefreshCw, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import PushManager from './19811221/PushManager';
 
 const MEMBERS = [
   { name: 'Andrea', email: 'demya1981@gmail.com', color: 'bg-pink-500 shadow-pink-500/50' },
@@ -36,7 +37,6 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
   const [priority, setPriority] = useState('normál');
   const [recurrence, setRecurrence] = useState('none');
 
-  // Megkeressük a bejelentkezett tag nevét az email alapján
   const currentMemberName = MEMBERS.find(m => m.email === currentUser.email)?.name || '';
 
   useEffect(() => {
@@ -82,7 +82,6 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
       return false;
     });
 
-    // Ha "Saját" nézetben vagyunk, csak azokat mutatjuk, ahol ott a nevünk
     if (filterMode === 'mine') {
       filtered = filtered.filter(e => e.member_names?.includes(currentMemberName) || (e.is_duty && currentMemberName === 'Zsolt'));
     }
@@ -97,6 +96,24 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
     setPriority(event.priority);
     setRecurrence(event.recurrence || 'none');
     setShowAddForm(true);
+  };
+
+  // PUSH ÉRTESÍTÉS KÜLDÉSE
+  const sendPushNotifications = async (eventTitle: string) => {
+    const { data: subs } = await supabase.from('push_subscriptions').select('subscription_json');
+    if (!subs || subs.length === 0) return;
+
+    await fetch('/api/push', {
+      method: 'POST',
+      body: JSON.stringify({
+        subscriptions: subs,
+        payload: {
+          title: '🚨 FONTOS CSALÁDI ESEMÉNY!',
+          body: `${currentMemberName} beírt valamit: ${eventTitle}`,
+          url: `/19811221`
+        }
+      })
+    });
   };
 
   const handleAddEvent = async (customTitle?: string, isDutyEvent: boolean = false) => {
@@ -127,10 +144,14 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
     } else {
       const { error: err } = await supabase.from('events').insert([eventData]);
       error = err;
+      // Ha FONTOS, küldünk értesítést
+      if (!err && priority === 'fontos' && !isDutyEvent) {
+        sendPushNotifications(finalTitle);
+      }
     }
 
     if (!error) { 
-      setTitle(''); setEditId(null); setRecurrence('none'); setShowAddForm(false); fetchEvents(); 
+      setTitle(''); setEditId(null); setRecurrence('none'); setPriority('normál'); setShowAddForm(false); fetchEvents(); 
     }
   };
 
@@ -168,7 +189,12 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
 
   return (
     <div className="space-y-4 max-w-4xl mx-auto">
-      {/* 1. FEJLÉC GOMBOK (Ügyelet ikon nélkül, fele szélesség, nézetváltó) */}
+      {/* PUSH MANAGER */}
+      <div className="flex justify-end">
+        <PushManager userId={currentUser.id} />
+      </div>
+
+      {/* 1. FEJLÉC GOMBOK */}
       <div className="flex items-center gap-2">
         <button onClick={() => { setEditId(null); setTitle(''); setShowAddForm(!showAddForm); }} 
           className="flex-[2] bg-emerald-500 hover:bg-emerald-400 text-white font-black text-xs py-4 rounded-2xl shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95"
@@ -187,10 +213,6 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
         >
           {filterMode === 'mine' ? <EyeOff size={14}/> : <Eye size={14}/>}
           <span className="mt-0.5">{filterMode === 'mine' ? 'Saját' : 'Összes'}</span>
-        </button>
-
-        <button onClick={() => { supabase.auth.signOut(); window.location.href='/'; }} className="bg-slate-900 border border-slate-800 p-4 rounded-2xl text-slate-500 hover:text-red-400">
-          <X size={18}/>
         </button>
       </div>
 
@@ -225,13 +247,14 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
         )}
       </div>
 
-      {/* 4. FORM & LISTA (Az előző logikával megegyezően, de a szűrést figyelembe véve) */}
+      {/* 4. FORM */}
       <AnimatePresence>
         {showAddForm && (
           <motion.form initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
             onSubmit={(e) => { e.preventDefault(); handleAddEvent(); }} className="bg-white p-6 rounded-[2.5rem] shadow-2xl text-black space-y-4"
           >
             <input type="text" placeholder="Mi a program?" value={title} onChange={e => setTitle(e.target.value)} autoFocus className="w-full bg-slate-100 border-none p-4 rounded-2xl text-lg font-bold outline-none" />
+            
             <div className="flex flex-wrap gap-2">
               {MEMBERS.map(m => (
                 <button key={m.name} type="button" onClick={() => setSelectedMembers(prev => prev.includes(m.name) ? prev.filter(x => x !== m.name) : [...prev, m.name])}
@@ -239,20 +262,31 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
                 >{m.name.toUpperCase()}</button>
               ))}
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <input type="time" value={time} onChange={e => setTime(e.target.value)} className="bg-slate-100 p-4 rounded-2xl font-bold outline-none" />
-              <select value={recurrence} onChange={e => setRecurrence(e.target.value)} className="bg-slate-100 p-4 rounded-2xl font-bold outline-none border-none">
+
+            <div className="flex items-center gap-4">
+               <button 
+                type="button"
+                onClick={() => setPriority(priority === 'fontos' ? 'normál' : 'fontos')}
+                className={`flex-1 flex items-center justify-center gap-2 p-4 rounded-2xl font-black text-xs border-2 transition-all ${priority === 'fontos' ? 'bg-red-600 border-red-600 text-white' : 'bg-white border-slate-100 text-slate-400'}`}
+               >
+                 <AlertCircle size={16} /> FONTOS
+               </button>
+               <input type="time" value={time} onChange={e => setTime(e.target.value)} className="flex-1 bg-slate-100 p-4 rounded-2xl font-bold outline-none" />
+            </div>
+
+            <select value={recurrence} onChange={e => setRecurrence(e.target.value)} className="w-full bg-slate-100 p-4 rounded-2xl font-bold outline-none border-none text-xs uppercase tracking-widest">
                 <option value="none">Nincs ismétlés</option>
                 <option value="daily">Minden nap</option>
                 <option value="weekly">Minden héten</option>
                 <option value="workdays">Munkanapokon</option>
-              </select>
-            </div>
+            </select>
+
             <button className="w-full bg-black text-white p-5 rounded-2xl font-black text-sm uppercase tracking-widest">MENTÉS</button>
           </motion.form>
         )}
       </AnimatePresence>
 
+      {/* LISTA */}
       <div className="space-y-3">
         {getEventsForDate(selectedDate).length === 0 ? (
           <p className="text-slate-600 italic text-sm text-center py-4">Nincs bejegyzés.</p>
@@ -264,6 +298,7 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
                 <div>
                   <h4 className="text-md font-bold text-white flex items-center gap-2">
                     {e.is_duty ? '🛡️ ' : ''}{e.title} {e.recurrence !== 'none' && <RefreshCw size={12} className="text-emerald-500" />}
+                    {e.priority === 'fontos' && <AlertCircle size={14} className="text-red-500" />}
                   </h4>
                   <div className="flex gap-1.5 mt-2">
                     {e.member_names?.map((m: string) => <div key={m} className={`w-3 h-3 rounded-full shadow-md ${MEMBERS.find(x => x.name === m)?.color}`} />)}
