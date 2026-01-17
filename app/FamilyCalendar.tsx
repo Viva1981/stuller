@@ -98,9 +98,14 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
     setShowAddForm(true);
   };
 
-  // PUSH ÉRTESÍTÉS KÜLDÉSE
+  // PUSH ÉRTESÍTÉS KÜLDÉSE - Most már szűréssel!
   const sendPushNotifications = async (eventTitle: string) => {
-    const { data: subs } = await supabase.from('push_subscriptions').select('subscription_json');
+    // Csak a többieknek küldjük: neq('user_id', currentUser.id)
+    const { data: subs } = await supabase
+      .from('push_subscriptions')
+      .select('subscription_json')
+      .neq('user_id', currentUser.id);
+
     if (!subs || subs.length === 0) return;
 
     await fetch('/api/push', {
