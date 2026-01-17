@@ -17,10 +17,18 @@ export default function FamilyCalendar() {
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [view, setView] = useState<'day' | 'month'>('day');
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  
+  // Segédfüggvény a dátum stabil YYYY-MM-DD formázásához (helyi idő szerint)
+  const formatDate = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const [selectedDate, setSelectedDate] = useState(formatDate(new Date()));
   const [pivotDate, setPivotDate] = useState(new Date());
 
-  // Form states
   const [editId, setEditId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [selectedMembers, setSelectedMembers] = useState<string[]>(['Zsolt']);
@@ -39,7 +47,7 @@ export default function FamilyCalendar() {
   const jumpToToday = () => {
     const today = new Date();
     setPivotDate(today);
-    setSelectedDate(today.toISOString().split('T')[0]);
+    setSelectedDate(formatDate(today));
   };
 
   const shiftView = (direction: number) => {
@@ -65,7 +73,6 @@ export default function FamilyCalendar() {
     const finalTitle = isDutyEvent ? "Ügyelet" : title;
     if (!finalTitle && !isDutyEvent) return;
 
-    // Ügyelet időpont logika
     let finalTime = time;
     if (isDutyEvent) {
       const d = new Date(selectedDate);
@@ -125,9 +132,9 @@ export default function FamilyCalendar() {
   const filteredEvents = events.filter(e => e.event_date === selectedDate);
 
   const renderDayCard = (date: Date, isCompact: boolean = false) => {
-    const dStr = date.toISOString().split('T')[0];
+    const dStr = formatDate(date);
     const active = dStr === selectedDate;
-    const isToday = new Date().toISOString().split('T')[0] === dStr;
+    const isToday = formatDate(new Date()) === dStr;
     const dayEvents = events.filter(e => e.event_date === dStr);
     const hasImportant = dayEvents.some(e => e.priority === 'fontos');
     const hasDuty = dayEvents.some(e => e.is_duty);
@@ -146,19 +153,22 @@ export default function FamilyCalendar() {
         </span>
         <span className="text-lg font-black">{date.getDate()}</span>
 
+        {/* TAGOK PÖTTYÖK */}
         <div className="absolute left-1.5 top-1.5 flex flex-col gap-1">
           {activeMemberColors.map(m => (
             <div key={m.name} className={`w-2.5 h-2.5 rounded-full shadow-lg ${m.color}`} />
           ))}
         </div>
 
+        {/* FONTOS JELZÉS (SARKON) */}
         {hasImportant && (
-          <div className="absolute top-1.5 right-1.5 h-3 w-3">
+          <div className="absolute -top-1 -right-1 h-3.5 w-3.5 z-20">
             <span className="animate-ping absolute h-full w-full rounded-full bg-red-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-red-600 shadow-md shadow-red-500/50"></span>
+            <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-red-600 shadow-md shadow-red-500/50 border border-slate-950"></span>
           </div>
         )}
 
+        {/* ÜGYELET JELZÉS */}
         {hasDuty && (
           <div className="absolute bottom-1.5 right-1.5 w-3 h-3 bg-blue-500 rounded-full shadow-md shadow-blue-500/50" />
         )}
