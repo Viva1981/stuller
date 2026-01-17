@@ -3,13 +3,13 @@
 import { useState, useEffect } from 'react';
 import { supabase } from './supabase';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Calendar as CalendarIcon, Clock, User, Plus, X, Trash2, ChevronLeft, ChevronRight, Target, AlertCircle, Briefcase, Users } from 'lucide-react';
+import { Plus, X, Trash2, ChevronLeft, ChevronRight, Target, Briefcase, Calendar as CalendarIcon } from 'lucide-react';
 
 const MEMBERS = [
-  { name: 'Andrea', color: 'bg-pink-500' },
-  { name: 'Zsolt', color: 'bg-blue-500' },
-  { name: 'Adél', color: 'bg-purple-500' },
-  { name: 'Zsombor', color: 'bg-orange-500' }
+  { name: 'Andrea', color: 'bg-pink-500 shadow-pink-500/50' },
+  { name: 'Zsolt', color: 'bg-blue-500 shadow-blue-500/50' },
+  { name: 'Adél', color: 'bg-purple-500 shadow-purple-500/50' },
+  { name: 'Zsombor', color: 'bg-orange-500 shadow-orange-500/50' }
 ];
 
 export default function FamilyCalendar() {
@@ -17,17 +17,14 @@ export default function FamilyCalendar() {
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [view, setView] = useState<'day' | 'month'>('day');
-  
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [pivotDate, setPivotDate] = useState(new Date());
 
-  // Form állapotok
+  // Form states
   const [title, setTitle] = useState('');
   const [selectedMembers, setSelectedMembers] = useState<string[]>(['Zsolt']);
-  const [time, setTime] = useState('12:00');
+  const [time, setTime] = useState('08:00');
   const [priority, setPriority] = useState('normál');
-  const [isDuty, setIsDuty] = useState(false);
-  const [recurrence, setRecurrence] = useState('none');
 
   const fetchEvents = async () => {
     setLoading(true);
@@ -38,15 +35,23 @@ export default function FamilyCalendar() {
 
   useEffect(() => { fetchEvents(); }, []);
 
-  const handleAddEvent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title) return;
+  const handleAddEvent = async (customTitle?: string, isDutyEvent: boolean = false) => {
+    const finalTitle = customTitle || title;
+    if (!finalTitle && !isDutyEvent) return;
+
     const { error } = await supabase.from('events').insert([{ 
-      title, event_date: selectedDate, event_time: time, 
-      member_names: selectedMembers, priority, is_duty: isDuty, recurrence 
+      title: finalTitle, 
+      event_date: selectedDate, 
+      event_time: isDutyEvent ? "00:00" : time, 
+      member_names: isDutyEvent ? [] : selectedMembers, 
+      priority: isDutyEvent ? 'normál' : priority, 
+      is_duty: isDutyEvent 
     }]);
+
     if (!error) { 
-      setTitle(''); setIsDuty(false); setRecurrence('none'); setShowAddForm(false); fetchEvents(); 
+      setTitle(''); 
+      setShowAddForm(false); 
+      fetchEvents(); 
     }
   };
 
@@ -55,147 +60,199 @@ export default function FamilyCalendar() {
     fetchEvents();
   };
 
+  const getDaysForMonth = () => {
+    const days = [];
+    const start = new Date(pivotDate.getFullYear(), pivotDate.getMonth(), 1);
+    // Hétfőre állítjuk a kezdőpontot
+    const startDay = start.getDay() === 0 ? 6 : start.getDay() - 1;
+    start.setDate(start.getDate() - startDay);
+
+    for (let i = 0; i < 28; i++) { // 4 hét fixen
+      days.push(new Date(start.getTime() + i * 24 * 60 * 60 * 1000));
+    }
+    return days;
+  };
+
   const getVisibleDays = () => {
     const days = [];
+    const start = new Date(pivotDate);
     for (let i = 0; i < 7; i++) {
-      const d = new Date(pivotDate);
-      d.setDate(pivotDate.getDate() + i);
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
       days.push(d);
     }
     return days;
   };
 
-  const toggleMember = (m: string) => {
-    setSelectedMembers(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
-  };
-
   const filteredEvents = events.filter(e => e.event_date === selectedDate);
 
-  return (
-    <div className="space-y-4">
-      {/* 1. KOMPAKT NAVIGÁCIÓ */}
-      <div className="flex justify-between items-center bg-slate-900/50 p-2 rounded-2xl border border-slate-800">
-        <div className="flex gap-1">
-          <button onClick={() => setPivotDate(new Date(pivotDate.setDate(pivotDate.getDate() - 7)))} className="p-2 hover:bg-slate-800 rounded-xl"><ChevronLeft size={18}/></button>
-          <button onClick={() => { setPivotDate(new Date()); setSelectedDate(new Date().toISOString().split('T')[0]); }} className="px-3 py-1 text-xs font-black text-emerald-400">MA</button>
-          <button onClick={() => setPivotDate(new Date(pivotDate.setDate(pivotDate.getDate() + 7)))} className="p-2 hover:bg-slate-800 rounded-xl"><ChevronRight size={18}/></button>
+  // Helper to render a day card
+  const renderDayCard = (date: Date, isCompact: boolean = false) => {
+    const dStr = date.toISOString().split('T')[0];
+    const active = dStr === selectedDate;
+    const isToday = new Date().toISOString().split('T')[0] === dStr;
+    const dayEvents = events.filter(e => e.event_date === dStr);
+    const hasImportant = dayEvents.some(e => e.priority === 'fontos');
+    const hasDuty = dayEvents.some(e => e.is_duty);
+    const activeMemberColors = MEMBERS.filter(m => dayEvents.some(e => e.member_names?.includes(m.name)));
+
+    return (
+      <button key={dStr} onClick={() => setSelectedDate(dStr)}
+        className={`relative flex-1 min-w-0 ${isCompact ? 'h-16' : 'h-20'} rounded-2xl flex flex-col items-center justify-center transition-all border shadow-sm ${
+          active 
+          ? 'bg-white text-black border-white scale-105 z-10 shadow-xl' 
+          : 'bg-slate-900 border-slate-800 text-slate-500 hover:border-slate-600'
+        }`}
+      >
+        <span className={`text-[9px] font-black uppercase ${active ? 'text-black/60' : 'text-slate-500'}`}>
+          {date.toLocaleDateString('hu-HU', { weekday: 'short' })}
+        </span>
+        <span className="text-lg font-black">{date.getDate()}</span>
+
+        {/* JELZÉSEK: BAL OLDAL (TAGOK) */}
+        <div className="absolute left-2 top-2 flex flex-col gap-1">
+          {activeMemberColors.map(m => (
+            <div key={m.name} className={`w-2 h-2 rounded-full shadow-sm ${m.color}`} />
+          ))}
         </div>
-        <h3 className="text-sm font-black uppercase tracking-tighter">
-          {pivotDate.toLocaleDateString('hu-HU', { month: 'short', year: 'numeric' })}
-        </h3>
-        <button onClick={() => setView(view === 'day' ? 'month' : 'day')} className="text-[10px] font-black bg-slate-800 px-3 py-1 rounded-lg uppercase">
-          {view === 'day' ? 'Havi nézet' : 'Beosztás'}
+
+        {/* FONTOS JELZÉS: JOBB FENT (PULZÁLÓ) */}
+        {hasImportant && (
+          <div className="absolute top-2 right-2 h-2.5 w-2.5">
+            <span className="animate-ping absolute h-full w-full rounded-full bg-red-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-600 shadow-sm shadow-red-500/50"></span>
+          </div>
+        )}
+
+        {/* ÜGYELET JELZÉS: JOBB ALUL (KÉK) */}
+        {hasDuty && (
+          <div className="absolute bottom-2 right-2 w-2.5 h-2.5 bg-blue-500 rounded-full shadow-sm shadow-blue-500/50" />
+        )}
+        
+        {isToday && !active && <div className="absolute bottom-1 w-5 h-0.5 bg-emerald-500 rounded-full" />}
+      </button>
+    );
+  };
+
+  return (
+    <div className="space-y-4 max-w-4xl mx-auto">
+      {/* 1. ÚJ FEJLÉC (GOMBOKKAL) */}
+      <div className="flex items-center gap-2">
+        <button onClick={() => setShowAddForm(!showAddForm)} 
+          className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-white font-black text-xs py-4 rounded-2xl shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition-all active:scale-95"
+        >
+          {showAddForm ? <X size={18}/> : <Plus size={18}/>}
+          {showAddForm ? 'BEZÁRÁS' : 'ÚJ BEJEGYZÉS'}
+        </button>
+        
+        <button onClick={() => handleAddEvent("Ügyelet", true)}
+          className="bg-blue-600 hover:bg-blue-500 text-white font-black text-xs px-6 py-4 rounded-2xl shadow-lg shadow-blue-500/20 flex items-center gap-2 transition-all active:scale-95"
+        >
+          <Briefcase size={18}/>
+          ÜGYELET
+        </button>
+
+        <button onClick={() => { supabase.auth.signOut(); window.location.href='/'; }} 
+          className="bg-slate-900 border border-slate-800 p-4 rounded-2xl text-slate-500 hover:text-red-400 transition-colors"
+        >
+          <X size={18}/>
         </button>
       </div>
 
-      {/* 2. SMART DAY STRIP (7 NAP) */}
-      {view === 'day' && (
-        <div className="flex justify-between gap-1">
-          {getVisibleDays().map((date) => {
-            const dStr = date.toISOString().split('T')[0];
-            const active = dStr === selectedDate;
-            const dayEvents = events.filter(e => e.event_date === dStr);
-            const hasImportant = dayEvents.some(e => e.priority === 'fontos');
-            const hasDuty = dayEvents.some(e => e.is_duty);
-            const activeMemberColors = MEMBERS.filter(m => dayEvents.some(e => e.member_names?.includes(m.name)));
-
-            return (
-              <button key={dStr} onClick={() => setSelectedDate(dStr)}
-                className={`flex-1 min-w-0 h-14 rounded-xl flex flex-col items-center justify-center relative transition-all ${active ? 'bg-emerald-500 text-white scale-105 shadow-lg' : 'bg-slate-900 border border-slate-800 text-slate-500'}`}
-              >
-                <span className="text-[8px] font-black uppercase">{date.toLocaleDateString('hu-HU', { weekday: 'short' })}</span>
-                <span className="text-sm font-black">{date.getDate()}</span>
-
-                {/* BAL OLDAL: TAGOK PÖTTYÖK */}
-                <div className="absolute left-1 top-1 flex flex-col gap-0.5">
-                  {activeMemberColors.map(m => <div key={m.name} className={`w-1 h-1 rounded-full ${m.color}`} />)}
-                </div>
-
-                {/* JOBB FENT: FONTOS PULZÁLÓ */}
-                {hasImportant && (
-                  <div className="absolute top-1 right-1 h-1.5 w-1.5">
-                    <span className="animate-ping absolute h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500"></span>
-                  </div>
-                )}
-
-                {/* JOBB ALUL: ÜGYELET KÉK */}
-                {hasDuty && <div className="absolute bottom-1 right-1 w-1.5 h-1.5 bg-blue-400 rounded-full" />}
-              </button>
-            );
-          })}
+      {/* 2. NAVIGÁCIÓ */}
+      <div className="flex justify-between items-center bg-slate-900/40 p-2 rounded-2xl border border-slate-800/50 backdrop-blur-md">
+        <div className="flex gap-1">
+          <button onClick={() => setPivotDate(new Date(pivotDate.setDate(pivotDate.getDate() - 7)))} className="p-2 hover:bg-slate-800 rounded-xl"><ChevronLeft size={20}/></button>
+          <button onClick={jumpToToday} className="px-4 py-1 text-xs font-black text-emerald-400 hover:bg-emerald-400/10 rounded-lg transition-colors">MA</button>
+          <button onClick={() => setPivotDate(new Date(pivotDate.setDate(pivotDate.getDate() + 7)))} className="p-2 hover:bg-slate-800 rounded-xl"><ChevronRight size={20}/></button>
         </div>
-      )}
+        <div className="text-center">
+          <h3 className="text-sm font-black uppercase tracking-widest text-white">
+            {pivotDate.toLocaleDateString('hu-HU', { month: 'long', year: 'numeric' })}
+          </h3>
+        </div>
+        <button onClick={() => setView(view === 'day' ? 'month' : 'day')} 
+          className="flex items-center gap-2 text-[10px] font-black bg-white text-black px-4 py-2 rounded-xl uppercase hover:bg-slate-200 transition-colors"
+        >
+          <CalendarIcon size={14}/>
+          {view === 'day' ? 'Havi' : 'Heti'}
+        </button>
+      </div>
 
-      {/* 3. HOZZÁADÁS FORM (Kompakt, minden funkcióval) */}
-      <button onClick={() => setShowAddForm(!showAddForm)} className="w-full py-2 bg-slate-900 border border-dashed border-slate-700 rounded-xl text-xs font-bold text-slate-400 flex items-center justify-center gap-2">
-        {showAddForm ? <X size={14}/> : <Plus size={14}/>} {showAddForm ? 'BEZÁRÁS' : 'ÚJ BEJEGYZÉS'}
-      </button>
+      {/* 3. NAPTÁR NÉZETEK */}
+      <div className="min-h-[160px]">
+        {view === 'day' ? (
+          <div className="flex justify-between gap-2">
+            {getVisibleDays().map(d => renderDayCard(d))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-7 gap-2">
+            {getDaysForMonth().map(d => renderDayCard(d, true))}
+          </div>
+        )}
+      </div>
 
+      {/* 4. FORM */}
       <AnimatePresence>
         {showAddForm && (
-          <motion.form initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
-            onSubmit={handleAddEvent} className="bg-slate-900 p-4 rounded-2xl border border-slate-800 space-y-3"
+          <motion.form initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
+            onSubmit={(e) => { e.preventDefault(); handleAddEvent(); }} 
+            className="bg-white p-6 rounded-[2.5rem] space-y-4 shadow-2xl text-black"
           >
-            <input type="text" placeholder="Esemény neve..." value={title} onChange={e => setTitle(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm outline-none focus:border-emerald-500 text-white" />
+            <input type="text" placeholder="Mi a program?" value={title} onChange={e => setTitle(e.target.value)} autoFocus
+              className="w-full bg-slate-100 border-none p-4 rounded-2xl text-lg font-bold placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-emerald-500" />
             
             <div className="flex flex-wrap gap-2">
               {MEMBERS.map(m => (
-                <button key={m.name} type="button" onClick={() => toggleMember(m.name)}
-                  className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all border ${selectedMembers.includes(m.name) ? `${m.color} text-white border-transparent` : 'bg-slate-950 text-slate-500 border-slate-800'}`}
+                <button key={m.name} type="button" onClick={() => setSelectedMembers(prev => prev.includes(m.name) ? prev.filter(x => x !== m.name) : [...prev, m.name])}
+                  className={`px-4 py-2 rounded-xl text-xs font-black transition-all border-2 ${selectedMembers.includes(m.name) ? `bg-black text-white border-black` : 'bg-white text-slate-400 border-slate-100'}`}
                 >
-                  {m.name}
+                  {m.name.toUpperCase()}
                 </button>
               ))}
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <input type="time" value={time} onChange={e => setTime(e.target.value)} className="bg-slate-950 border border-slate-800 p-2 rounded-xl text-xs text-white" />
-              <select value={recurrence} onChange={e => setRecurrence(e.target.value)} className="bg-slate-950 border border-slate-800 p-2 rounded-xl text-xs text-white">
-                <option value="none">Nincs ismétlés</option>
-                <option value="daily">Naponta</option>
-                <option value="weekly">Hetente</option>
-              </select>
-            </div>
-
-            <div className="flex gap-2">
+            <div className="grid grid-cols-2 gap-3">
+              <input type="time" value={time} onChange={e => setTime(e.target.value)} className="bg-slate-100 border-none p-4 rounded-2xl font-bold outline-none" />
               <button type="button" onClick={() => setPriority(priority === 'fontos' ? 'normál' : 'fontos')}
-                className={`flex-1 p-2 rounded-xl text-[10px] font-bold border transition-all ${priority === 'fontos' ? 'bg-red-500 text-white' : 'bg-slate-950 text-slate-500 border-slate-800'}`}>
+                className={`p-4 rounded-2xl text-xs font-black border-2 transition-all ${priority === 'fontos' ? 'bg-red-500 text-white border-red-500' : 'bg-white text-slate-400 border-slate-100'}`}>
                 ⚠️ FONTOS
               </button>
-              <button type="button" onClick={() => setIsDuty(!isDuty)}
-                className={`flex-1 p-2 rounded-xl text-[10px] font-bold border transition-all ${isDuty ? 'bg-blue-500 text-white' : 'bg-slate-950 text-slate-500 border-slate-800'}`}>
-                🛡️ ÜGYELET
-              </button>
             </div>
 
-            <button className="w-full bg-emerald-500 p-3 rounded-xl font-black text-xs uppercase tracking-widest text-white">MENTÉS</button>
+            <button className="w-full bg-black text-white p-5 rounded-2xl font-black text-sm uppercase tracking-[0.2em] shadow-xl active:scale-95 transition-transform">
+              MENTÉS A NAPLÓBA
+            </button>
           </motion.form>
         )}
       </AnimatePresence>
 
-      {/* 4. ESEMÉNY LISTA */}
-      <div className="space-y-2">
-        {filteredEvents.map(e => (
-          <div key={e.id} className={`p-3 rounded-xl border flex items-center justify-between ${e.is_duty ? 'bg-blue-500/10 border-blue-500/30' : e.priority === 'fontos' ? 'bg-red-500/10 border-red-500/30' : 'bg-slate-900/40 border-slate-800/60'}`}>
-            <div className="flex gap-3 items-center">
-              <span className="text-[10px] font-black text-slate-500">{e.event_time.substring(0,5)}</span>
-              <div>
-                <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                  {e.is_duty && <Briefcase size={12} className="text-blue-400"/>}
-                  {e.title}
-                </h4>
-                <div className="flex gap-1 mt-1">
-                  {e.member_names?.map((m: string) => (
-                    <div key={m} className={`w-1.5 h-1.5 rounded-full ${MEMBERS.find(x => x.name === m)?.color}`} />
-                  ))}
+      {/* 5. LISTA */}
+      <div className="space-y-3">
+        <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">Napi program</h4>
+        {filteredEvents.length === 0 ? (
+          <p className="text-slate-600 italic text-sm px-2">Nincs bejegyzés erre a napra.</p>
+        ) : (
+          filteredEvents.map(e => (
+            <div key={e.id} className={`group p-4 rounded-3xl border transition-all flex items-center justify-between ${e.is_duty ? 'bg-blue-600/10 border-blue-500/20' : e.priority === 'fontos' ? 'bg-red-600/10 border-red-500/20' : 'bg-slate-900/40 border-slate-800/50'}`}>
+              <div className="flex gap-4 items-center">
+                <span className="text-xs font-black text-slate-400 bg-slate-800 px-2 py-1 rounded-md">{e.event_time.substring(0,5)}</span>
+                <div>
+                  <h4 className="text-md font-bold text-white flex items-center gap-2">
+                    {e.is_duty && <Briefcase size={16} className="text-blue-400"/>}
+                    {e.title}
+                  </h4>
+                  <div className="flex gap-1.5 mt-2">
+                    {e.member_names?.map((m: string) => (
+                      <div key={m} className={`w-2.5 h-2.5 rounded-full shadow-sm ${MEMBERS.find(x => x.name === m)?.color}`} />
+                    ))}
+                  </div>
                 </div>
               </div>
+              <button onClick={() => deleteEvent(e.id)} className="text-slate-600 hover:text-red-500 p-2 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={18}/></button>
             </div>
-            <button onClick={() => deleteEvent(e.id)} className="text-slate-600 p-1"><Trash2 size={14}/></button>
-          </div>
-        ))}
+          ))
+        )}
       </div>
     </div>
   );
