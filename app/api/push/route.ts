@@ -9,30 +9,22 @@ webpush.setVapidDetails(
 );
 
 export async function POST(request: Request) {
-  console.log('--- PUSH API HÍVÁS ÉRKEZETT ---');
-  
   try {
     const { subscriptions, payload } = await request.json();
 
-    console.log(`Feliratkozók száma: ${subscriptions?.length}`);
-
-    if (!subscriptions || !Array.isArray(subscriptions) || subscriptions.length === 0) {
-      console.error('Nincsenek érvényes feliratkozók a kérésben.');
-      return NextResponse.json({ error: 'Nincsenek feliratkozók' }, { status: 400 });
+    if (!subscriptions || subscriptions.length === 0) {
+      return NextResponse.json({ success: true, message: 'Nincs feliratkozó' });
     }
 
     const notifications = subscriptions.map((sub: any) =>
       webpush.sendNotification(sub.subscription_json, JSON.stringify(payload))
-        .then(() => console.log('Értesítés sikeresen elküldve egy eszközre.'))
-        .catch((err: any) => console.error('Küldési hiba egy eszközre:', err))
+        .catch((err: any) => console.error('Küldési hiba:', err))
     );
 
     await Promise.all(notifications);
-    console.log('--- PUSH API FOLYAMAT VÉGE ---');
-    
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Kritikus Push hiba az API-ban:', error);
-    return NextResponse.json({ error: 'Szerver hiba a küldéskor' }, { status: 500 });
+    console.error('Push hiba:', error);
+    return NextResponse.json({ error: 'Hiba' }, { status: 500 });
   }
 }

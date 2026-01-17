@@ -51,35 +51,23 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
   };
 
   // --- PUSH ÉRTESÍTÉS KÜLDÉSE ---
-  const sendPushNotifications = async (eventTitle: string) => {
-    console.log('Push indítása:', eventTitle);
+const sendPushNotifications = async (eventTitle: string, eventTime: string, members: string[]) => {
     const { data: subs } = await supabase.from('push_subscriptions').select('subscription_json');
+    if (!subs || subs.length === 0) return;
 
-    if (!subs || subs.length === 0) {
-      alert('Nincs feliratkozott eszköz az adatbázisban!');
-      return;
-    }
-
-    try {
-      const response = await fetch('/api/push', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          subscriptions: subs,
-          payload: {
-            title: '🚨 TESZT ÉRTESÍTÉS',
-            body: eventTitle,
-            url: `/19811221`
-          }
-        })
-      });
-      const resData = await response.json();
-      console.log('API Válasz:', resData);
-      if (resData.success) alert('Push elküldve a Google/Apple felé!');
-    } catch (err) {
-      console.error('Fetch hiba:', err);
-      alert('Hiba az API hívásakor!');
-    }
+    await fetch('/api/push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        subscriptions: subs,
+        payload: {
+          title: '🚨 ÚJ FONTOS PROGRAM',
+          // Formátum: [Tagok]: [Cím] - [Időpont]
+          body: `${members.join(', ')}: ${eventTitle} - ${eventTime}`,
+          url: `/19811221`
+        }
+      })
+    });
   };
 
   const handleAddEvent = async (customTitle?: string, isDutyEvent: boolean = false) => {
