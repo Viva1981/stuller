@@ -98,18 +98,23 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
     setShowAddForm(true);
   };
 
-  // PUSH ÉRTESÍTÉS KÜLDÉSE - Most már szűréssel!
+  // PUSH ÉRTESÍTÉS KÜLDÉSE - Teszt üzemmód (MINDENKINEK KÜLDÖD)
   const sendPushNotifications = async (eventTitle: string) => {
-    // Csak a többieknek küldjük: neq('user_id', currentUser.id)
+    // KIVETTÜK A SZŰRÉST, hogy te is megkapd teszteléskor!
     const { data: subs } = await supabase
       .from('push_subscriptions')
-      .select('subscription_json')
-      .neq('user_id', currentUser.id);
+      .select('subscription_json');
 
-    if (!subs || subs.length === 0) return;
+    console.log('Küldés a következő feliratkozóknak:', subs);
 
-    await fetch('/api/push', {
+    if (!subs || subs.length === 0) {
+      console.log('Nincs feliratkozó az adatbázisban.');
+      return;
+    }
+
+    const response = await fetch('/api/push', {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         subscriptions: subs,
         payload: {
@@ -119,6 +124,9 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
         }
       })
     });
+
+    const result = await response.json();
+    console.log('API válasz:', result);
   };
 
   const handleAddEvent = async (customTitle?: string, isDutyEvent: boolean = false) => {
