@@ -1,16 +1,28 @@
 {
-  "name": "Stuller APP",
+  "name": "Stuller Projekt",
   "short_name": "Stuller",
-  "description": "Családi vezérlőpult",
+  "description": "Családi Digitális Biblia",
   "start_url": "/19811221",
   "display": "standalone",
-  "background_color": "#020617",
-  "theme_color": "#020617",
+  "background_color": "#050608",
+  "theme_color": "#10b981",
+  "orientation": "portrait",
   "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/553/553118.png",
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

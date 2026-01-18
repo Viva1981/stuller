@@ -56,11 +56,6 @@ export default function FamilyDashboard() {
 
   return (
     <main className="min-h-screen p-3 md:p-8 bg-[#050608] text-white font-sans selection:bg-emerald-500/30">
-      {/* 
-         MAXIMUM MAGIC LAYOUT: 
-         Megszüntettük a grid-cols-3-at. 
-         Minden egyetlen max-w-4xl (kb. 900px) sávban van középen.
-      */}
       <div className="max-w-4xl mx-auto space-y-8">
         
         {/* 1. NAPTÁR SZEKCIÓ */}
@@ -72,28 +67,27 @@ export default function FamilyDashboard() {
           <FamilyCalendar currentUser={user} />
         </motion.section>
 
-        {/* 2. MENÜ SZEKCIÓ (Sunday Chef) */}
+        {/* 2. BEVÁSÁRLÓLISTA SZEKCIÓ (Most már felül) */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
         >
-          <SundayChef userName={user?.displayName} />
+          <ShoppingList userName={user?.displayName} />
         </motion.section>
 
-        {/* 3. BEVÁSÁRLÓLISTA SZEKCIÓ (Kosár) */}
+        {/* 3. MENÜ SZEKCIÓ (Legalul) */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
         >
-          <ShoppingList userName={user?.displayName} />
+          <SundayChef userName={user?.displayName} />
         </motion.section>
 
-        {/* LÁBJEGYZET SZEKCIÓ (Opcionális, tiszta lezárás) */}
         <footer className="py-10 text-center">
           <p className="text-[10px] font-black uppercase tracking-[0.5em] text-slate-800">
-            STULLER PROJEKT • 2026
+            STULLER • 2026
           </p>
         </footer>
 
