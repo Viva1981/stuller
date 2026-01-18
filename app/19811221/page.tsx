@@ -41,7 +41,6 @@ export default function FamilyDashboard() {
     };
     checkUser();
 
-    // SERVICE WORKER REGISZTRÁCIÓ KÉNYSZERÍTÉSE
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js', { scope: '/' })
         .then((reg) => console.log('SW regisztrálva:', reg.scope))
@@ -50,23 +49,54 @@ export default function FamilyDashboard() {
   }, [router]);
 
   if (loading) return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+    <div className="min-h-screen bg-[#050608] flex items-center justify-center">
       <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-emerald-500"></div>
     </div>
   );
 
   return (
-    <main className="min-h-screen p-2 md:p-6 bg-slate-950 text-white font-sans">
-      <div className="max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            <FamilyCalendar currentUser={user} />
-            <SundayChef userName={user?.displayName} />
-          </div>
-          <div className="space-y-6">
-            <ShoppingList userName={user?.displayName} />
-          </div>
-        </div>
+    <main className="min-h-screen p-3 md:p-8 bg-[#050608] text-white font-sans selection:bg-emerald-500/30">
+      {/* 
+         MAXIMUM MAGIC LAYOUT: 
+         Megszüntettük a grid-cols-3-at. 
+         Minden egyetlen max-w-4xl (kb. 900px) sávban van középen.
+      */}
+      <div className="max-w-4xl mx-auto space-y-8">
+        
+        {/* 1. NAPTÁR SZEKCIÓ */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <FamilyCalendar currentUser={user} />
+        </motion.section>
+
+        {/* 2. MENÜ SZEKCIÓ (Sunday Chef) */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+        >
+          <SundayChef userName={user?.displayName} />
+        </motion.section>
+
+        {/* 3. BEVÁSÁRLÓLISTA SZEKCIÓ (Kosár) */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+        >
+          <ShoppingList userName={user?.displayName} />
+        </motion.section>
+
+        {/* LÁBJEGYZET SZEKCIÓ (Opcionális, tiszta lezárás) */}
+        <footer className="py-10 text-center">
+          <p className="text-[10px] font-black uppercase tracking-[0.5em] text-slate-800">
+            STULLER PROJEKT • 2026
+          </p>
+        </footer>
+
       </div>
     </main>
   );
