@@ -1,16 +1,18 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link'; // Ez kell a navigációhoz
 import { supabase } from './supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, X, Trash2, ChevronLeft, ChevronRight, Calendar as CalendarIcon, RefreshCw, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import PushManager from './19811221/PushManager';
 
+// Kiegészítettem a PATH tulajdonsággal a navigációhoz
 const MEMBERS = [
-  { name: 'Andrea', email: 'demya1981@gmail.com', color: 'bg-pink-500 shadow-pink-500/50', initial: 'A' },
-  { name: 'Zsolt', email: 'stuller.zsolt@gmail.com', color: 'bg-blue-500 shadow-blue-500/50', initial: 'ZS' },
-  { name: 'Adél', email: 'stuller.adel@gmail.com', color: 'bg-purple-500 shadow-purple-500/50', initial: 'A' },
-  { name: 'Zsombor', email: 'stuller.zsombor@gmail.com', color: 'bg-orange-500 shadow-orange-500/50', initial: 'ZS' }
+  { name: 'Andrea', email: 'demya1981@gmail.com', color: 'bg-pink-500 shadow-pink-500/50', initial: 'A', path: 'andrea' },
+  { name: 'Zsolt', email: 'stuller.zsolt@gmail.com', color: 'bg-blue-500 shadow-blue-500/50', initial: 'ZS', path: 'zsolt' },
+  { name: 'Adél', email: 'stuller.adel@gmail.com', color: 'bg-purple-500 shadow-purple-500/50', initial: 'A', path: 'adel' },
+  { name: 'Zsombor', email: 'stuller.zsombor@gmail.com', color: 'bg-orange-500 shadow-orange-500/50', initial: 'ZS', path: 'zsombor' }
 ];
 
 export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
@@ -142,17 +144,23 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
 
   return (
     <div className="space-y-4 max-w-4xl mx-auto pb-4">
-      {/* TOP BAR: PUSH + TAGOK */}
+      {/* TOP BAR: PUSH + TAGOK (NAVIGÁCIÓS GOMBOKKÁ ALAKÍTVA) */}
       <div className="flex items-center justify-end gap-3 px-1">
         <div className="flex gap-2">
           {MEMBERS.map(m => (
-            <motion.div
-              key={m.name}
-              whileHover={{ y: -2 }}
-              className={`w-8 h-8 rounded-full ${m.color} flex items-center justify-center text-[10px] font-black text-white shadow-lg cursor-pointer border border-white/10`}
-            >
-              {m.initial}
-            </motion.div>
+            <Link key={m.name} href={`/19811221/${m.path}`}>
+                <motion.div
+                whileHover={{ y: -2, scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                className={`w-8 h-8 rounded-full ${m.color} flex items-center justify-center text-[10px] font-black text-white shadow-lg cursor-pointer border border-white/10 relative group`}
+                >
+                {m.initial}
+                {/* Tooltip hoverre */}
+                <div className="absolute -bottom-8 opacity-0 group-hover:opacity-100 transition-opacity bg-black text-white text-[9px] px-2 py-1 rounded pointer-events-none whitespace-nowrap">
+                    {m.name} profil
+                </div>
+                </motion.div>
+            </Link>
           ))}
         </div>
         <PushManager userId={currentUser.id} />

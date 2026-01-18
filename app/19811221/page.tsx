@@ -2,13 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link'; // Fontos import!
 import { supabase } from '../supabase';
 import FamilyCalendar from '../FamilyCalendar';
 import ShoppingList from './ShoppingList';
 import SundayChef from './SundayChef';
 import { motion } from 'framer-motion';
-import { User, GraduationCap, Utensils, Heart } from 'lucide-react'; // Ikonok
 
 const WHITELIST = [
   'stuller.zsolt@gmail.com',
@@ -56,40 +54,12 @@ export default function FamilyDashboard() {
     </div>
   );
 
-  // Gombok definíciója a könnyebb kezelhetőségért
-  const familyButtons = [
-    { name: 'Andrea', path: '/19811221/andrea', color: 'bg-rose-500', icon: Heart },
-    { name: 'Zsolt', path: '/19811221/zsolt', color: 'bg-blue-600', icon: User },
-    { name: 'Adél', path: '/19811221/adel', color: 'bg-purple-600', icon: GraduationCap },
-    { name: 'Zsombor', path: '/19811221/zsombor', color: 'bg-teal-600', icon: GraduationCap },
-  ];
-
   return (
     <main className="min-h-screen p-3 md:p-8 bg-[#050608] text-white font-sans selection:bg-emerald-500/30">
       <div className="max-w-4xl mx-auto space-y-8">
         
-        {/* 0. CSALÁD VÁLASZTÓ (ÚJ SZEKCIÓ) */}
-        <motion.section 
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="grid grid-cols-2 md:grid-cols-4 gap-4"
-        >
-            {familyButtons.map((member) => (
-                <Link key={member.name} href={member.path} className="block group">
-                    <div className="relative overflow-hidden rounded-2xl bg-[#0a0c10] border border-white/5 p-4 hover:border-white/20 transition-all duration-300 h-24 flex flex-col items-center justify-center gap-2">
-                        {/* Háttér glow */}
-                        <div className={`absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity ${member.color}`}></div>
-                        
-                        <div className={`p-2 rounded-full bg-white/5 group-hover:scale-110 transition-transform ${member.color.replace('bg-', 'text-')}`}>
-                            <member.icon size={20} />
-                        </div>
-                        <span className="font-bold text-sm tracking-widest uppercase text-white/80">{member.name}</span>
-                    </div>
-                </Link>
-            ))}
-        </motion.section>
-
         {/* 1. NAPTÁR SZEKCIÓ */}
+        {/* Ebben vannak a kicsi kerek gombok, amiket most kötöttünk be! */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
