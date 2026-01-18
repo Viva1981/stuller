@@ -1,28 +1,31 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// Kliens létrehozása (mivel ez szerveroldali, itt közvetlenül a környezeti változókat használjuk)
+// Itt a titkos SERVICE_ROLE_KEY-t használjuk, ami átlát az RLS-en
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 export async function GET() {
-  console.log('--- CRON ROBOT INDUL ---');
+  console.log('--- CRON ROBOT INDUL (Service Role Mode) ---');
   const now = new Date();
   
   try {
-    // 1. Összes feliratkozó lekérése
-    const { data: subs } = await supabase.from('push_subscriptions').select('subscription_json');
+    // 1. Összes feliratkozó lekérése (Most már engedni fogja a 401 helyett)
+    const { data: subs, error: subError } = await supabase.from('push_subscriptions').select('subscription_json');
+    
+    if (subError) throw subError;
     if (!subs || subs.length === 0) return NextResponse.json({ status: 'nincs feliratkozó' });
 
-    // 2. Fontos események lekérése, amiknél még kell emlékeztető
-    const { data: events } = await supabase
+    // 2. Fontos események lekérése
+    const { data: events, error: eventError } = await supabase
       .from('events')
       .select('*')
       .eq('priority', 'fontos')
       .or('reminder_1d_sent.eq.false,reminder_1h_sent.eq.false');
 
+    if (eventError) throw eventError;
     if (!events || events.length === 0) return NextResponse.json({ status: 'nincs aktuális fontos esemény' });
 
     for (const event of events) {
@@ -47,8 +50,10 @@ export async function GET() {
       if (type && updateField) {
         console.log(`Emlékeztető küldése: ${event.title} (${type})`);
         
-        // Meghívjuk a már működő push API-t
-        await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL?.replace('.supabase.co', '.vercel.app')}/api/push`, {
+        // Meghívjuk a push API-t a Vercel-en (Saját domain használata)
+        const baseUrl = `https://${process.env.VERCEL_URL || 'stuller.vercel.app'}`;
+        
+        await fetch(`${baseUrl}/api/push`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -59,16 +64,16 @@ export async function GET() {
               url: '/19811221'
             }
           })
-        });
+        }).catch(e => console.error('Fetch hiba:', e));
 
-        // Adatbázis frissítése, hogy ne küldjük el többször
+        // Megjelöljük elküldöttnek
         await supabase.from('events').update({ [updateField]: true }).eq('id', event.id);
       }
     }
 
-    return NextResponse.json({ success: true, timestamp: now.toISOString() });
-  } catch (err) {
-    console.error('Cron hiba:', err);
-    return NextResponse.json({ error: 'Szerver hiba a cron futásakor' }, { status: 500 });
+    return NextResponse.json({ success: true, processed: events.length });
+  } catch (err: any) {
+    console.error('Kritikus Cron hiba:', err.message);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
