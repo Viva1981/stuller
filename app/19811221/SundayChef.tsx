@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Trash2, ChevronLeft, ChevronRight, ThumbsUp, ThumbsDown } from 'lucide-react'
+import { Plus, Trash2, ChevronLeft, ChevronRight, ThumbsUp, ThumbsDown, ChevronDown } from 'lucide-react'
 import { supabase } from '../supabase'
 
 const MEMBERS = [
@@ -16,7 +16,8 @@ export default function SundayChef({ userName }: { userName: string }) {
   const [meals, setMeals] = useState<any[]>([])
   const [ratings, setRatings] = useState<any[]>([])
   const [weekOffset, setWeekOffset] = useState(0)
-  const [editingSlot, setEditingSlot] = useState<number | null>(null)
+  const [isExpanded, setIsExpanded] = useState(false)
+  const [isAdding, setIsAdding] = useState(false)
   const [newDish, setNewDish] = useState('')
 
   const getSundayDate = (offset: number) => {
@@ -40,17 +41,17 @@ export default function SundayChef({ userName }: { userName: string }) {
     if (ratingData) setRatings(ratingData)
   }
 
-  async function saveMeal(slotIndex: number) {
+  async function saveMeal() {
     if (!newDish) return
     await supabase.from('meal_planner').insert([{ 
       dish_name: newDish, 
       week_date: dbDateKey,
       chef_name: userName,
-      day: slotIndex.toString(),
+      day: Date.now().toString(), // Egyedi azonosító a slot helyett
       meal_type: 'Slot'
     }])
     setNewDish('')
-    setEditingSlot(null)
+    setIsAdding(false)
     fetchData()
   }
 
@@ -69,110 +70,107 @@ export default function SundayChef({ userName }: { userName: string }) {
   }
 
   return (
-    <div className="bg-[#0a0c10] border border-white/5 rounded-[3rem] p-6 md:p-8 shadow-2xl relative overflow-hidden">
+    <div className="bg-[#0a0c10]/60 border border-white/5 rounded-[2rem] overflow-hidden backdrop-blur-md transition-all">
       
-      <div className="flex flex-col items-center mb-10">
-        <h2 className="text-2xl font-black italic uppercase tracking-tighter text-white mb-4">Sunday Chef</h2>
-        <div className="flex items-center gap-6 bg-white/5 px-6 py-2 rounded-full border border-white/10 shadow-lg">
-          <button onClick={() => setWeekOffset(prev => prev - 1)} className="text-slate-500 hover:text-white transition-colors">
-            <ChevronLeft size={20} />
-          </button>
-          <span className="text-[10px] font-black tracking-[0.3em] text-amber-500 uppercase">{formattedSunday}</span>
-          <button onClick={() => setWeekOffset(prev => prev + 1)} className="text-slate-500 hover:text-white transition-colors">
-            <ChevronRight size={20} />
-          </button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {Array.from({ length: 8 }).map((_, index) => {
-          const meal = meals.find(m => m.day === index.toString())
-          
-          return (
-            <motion.div 
-              key={index}
-              layout
-              className={`relative min-h-[120px] rounded-[2rem] border transition-all duration-500 flex flex-col p-5 ${
-                meal ? 'bg-white/5 border-white/10 shadow-xl' : 'bg-transparent border-dashed border-white/5'
-              }`}
-            >
-              {meal ? (
-                <>
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="text-sm font-bold text-white pr-10 leading-tight">{meal.dish_name}</span>
-                    <button 
-                      onClick={async () => { await supabase.from('meal_planner').delete().eq('id', meal.id); fetchData() }}
-                      className="absolute top-4 right-4 p-2 text-amber-500/40 hover:text-amber-500 active:text-red-500 transition-all"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-
-                  <div className="mt-auto flex justify-between items-center">
-                    <div className="flex gap-1.5">
-                      {MEMBERS.map(member => {
-                        const rating = ratings.find(r => r.meal_id === meal.id && r.member_name === member.name)
-                        if (!rating) return null
-                        return (
-                          <motion.div 
-                            key={member.name} 
-                            initial={{ scale: 0 }} 
-                            animate={{ scale: 1 }}
-                            className={`w-3.5 h-3.5 rounded-full ${member.color} flex items-center justify-center overflow-hidden`}
-                          >
-                            {!rating.is_liked && <div className="w-full h-[1px] bg-black/70 rotate-45" />}
-                          </motion.div>
-                        )
-                      })}
-                    </div>
-                    
-                    <div className="flex gap-1">
-                      <button 
-                        onClick={() => toggleRating(meal.id, true)} 
-                        className={`p-2 rounded-xl transition-all ${ratings.find(r => r.meal_id === meal.id && r.member_name === userName && r.is_liked) ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' : 'text-amber-500/50'}`}
-                      >
-                        <ThumbsUp size={16} />
-                      </button>
-                      <button 
-                        onClick={() => toggleRating(meal.id, false)} 
-                        className={`p-2 rounded-xl transition-all ${ratings.find(r => r.meal_id === meal.id && r.member_name === userName && !r.is_liked) ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' : 'text-amber-500/50'}`}
-                      >
-                        <ThumbsDown size={16} />
-                      </button>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="flex items-center justify-center h-full">
-                  {editingSlot === index ? (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex w-full gap-2">
-                      <input 
-                        autoFocus
-                        value={newDish}
-                        onChange={(e) => setNewDish(e.target.value)}
-                        onBlur={() => { if(!newDish) setEditingSlot(null) }}
-                        onKeyDown={(e) => e.key === 'Enter' && saveMeal(index)}
-                        placeholder="Étel neve..."
-                        className="flex-1 bg-white/10 border-none rounded-xl px-4 py-3 text-white text-xs font-bold outline-none"
-                      />
-                      <button onClick={() => saveMeal(index)} className="bg-amber-500 p-3 rounded-xl text-black shadow-lg shadow-amber-500/20">
-                        <Plus size={18} />
-                      </button>
-                    </motion.div>
-                  ) : (
-                    <button 
-                      onClick={() => setEditingSlot(index)}
-                      className="text-amber-500/20 hover:text-amber-500 transition-colors p-4"
-                    >
-                      <Plus size={28} />
-                    </button>
-                  )}
-                </div>
-              )}
+      {/* COMPACT HEADER */}
+      <div className="flex items-center justify-between p-4 px-6">
+        <div className="flex items-center gap-4">
+          <button onClick={() => setIsExpanded(!isExpanded)} className="flex items-center gap-3">
+            <span className="text-xs font-black tracking-[0.2em] text-white uppercase">Menü</span>
+            <motion.div animate={{ rotate: isExpanded ? 180 : 0 }}>
+              <ChevronDown size={16} className="text-amber-500" />
             </motion.div>
-          )
-        })}
+          </button>
+          
+          <div className="flex items-center gap-3 bg-white/5 px-3 py-1 rounded-full border border-white/10">
+            <button onClick={() => setWeekOffset(prev => prev - 1)} className="text-slate-500 hover:text-white"><ChevronLeft size={14} /></button>
+            <span className="text-[9px] font-black tracking-widest text-amber-500 uppercase">{formattedSunday}</span>
+            <button onClick={() => setWeekOffset(prev => prev + 1)} className="text-slate-500 hover:text-white"><ChevronLeft size={14} className="rotate-180" /></button>
+          </div>
+        </div>
+
+        <button 
+          onClick={() => { setIsExpanded(true); setIsAdding(true); }}
+          className="bg-amber-500 text-black p-2 rounded-xl active:scale-90 transition-all"
+        >
+          <Plus size={16} />
+        </button>
       </div>
+
+      {/* EXPANDABLE CONTENT */}
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.div 
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="px-4 pb-6 space-y-3"
+          >
+            {/* Csak létező kártyák megjelenítése */}
+            {meals.map((meal) => (
+              <motion.div 
+                key={meal.id}
+                layout
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="relative bg-white/5 border border-white/10 rounded-[1.5rem] p-4 flex flex-col"
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <span className="text-sm font-bold text-white pr-10">{meal.dish_name}</span>
+                  <button 
+                    onClick={async () => { await supabase.from('meal_planner').delete().eq('id', meal.id); fetchData() }}
+                    className="absolute top-4 right-4 text-amber-500/30 hover:text-amber-500 transition-all"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+
+                <div className="mt-auto flex justify-between items-center">
+                  <div className="flex gap-1">
+                    {MEMBERS.map(member => {
+                      const rating = ratings.find(r => r.meal_id === meal.id && r.member_name === member.name)
+                      if (!rating) return null
+                      return (
+                        <div key={member.name} className={`w-3 h-3 rounded-full ${member.color} flex items-center justify-center overflow-hidden`}>
+                          {!rating.is_liked && <div className="w-full h-[1px] bg-black/70 rotate-45" />}
+                        </div>
+                      )
+                    })}
+                  </div>
+                  
+                  <div className="flex gap-0.5">
+                    <button onClick={() => toggleRating(meal.id, true)} className={`p-1.5 transition-all ${ratings.find(r => r.meal_id === meal.id && r.member_name === userName && r.is_liked) ? 'text-amber-500' : 'text-amber-500/20'}`}>
+                      <ThumbsUp size={14} />
+                    </button>
+                    <button onClick={() => toggleRating(meal.id, false)} className={`p-1.5 transition-all ${ratings.find(r => r.meal_id === meal.id && r.member_name === userName && !r.is_liked) ? 'text-amber-500' : 'text-amber-500/20'}`}>
+                      <ThumbsDown size={14} />
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+
+            {/* Új étel hozzáadása sor */}
+            {isAdding ? (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex gap-2 bg-white/5 p-2 rounded-2xl border border-amber-500/30">
+                <input 
+                  autoFocus
+                  value={newDish}
+                  onChange={(e) => setNewDish(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && saveMeal()}
+                  placeholder="Étel neve..."
+                  className="flex-1 bg-transparent border-none px-3 py-2 text-white text-xs font-bold outline-none"
+                />
+                <button onClick={saveMeal} className="bg-amber-500 px-4 py-2 rounded-xl text-black text-[10px] font-black uppercase">Ok</button>
+              </motion.div>
+            ) : (
+              meals.length === 0 && (
+                <p className="text-[10px] text-slate-600 text-center py-4 font-bold uppercase tracking-widest">Nincs rögzített étel</p>
+              )
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
