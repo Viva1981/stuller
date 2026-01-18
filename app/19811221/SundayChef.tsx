@@ -19,7 +19,6 @@ export default function SundayChef({ userName }: { userName: string }) {
   const [editingSlot, setEditingSlot] = useState<number | null>(null)
   const [newDish, setNewDish] = useState('')
 
-  // Kiszámolja az aktuális vagy eltolt hét vasárnapját
   const getSundayDate = (offset: number) => {
     const d = new Date()
     const day = d.getDay() 
@@ -47,7 +46,7 @@ export default function SundayChef({ userName }: { userName: string }) {
       dish_name: newDish, 
       week_date: dbDateKey,
       chef_name: userName,
-      day: slotIndex.toString(), // Slot azonosítóként használjuk a kötelező mezőt
+      day: slotIndex.toString(),
       meal_type: 'Slot'
     }])
     setNewDish('')
@@ -70,23 +69,21 @@ export default function SundayChef({ userName }: { userName: string }) {
   }
 
   return (
-    <div className="bg-[#0a0c10] border border-white/5 rounded-[3rem] p-8 shadow-2xl relative overflow-hidden">
+    <div className="bg-[#0a0c10] border border-white/5 rounded-[3rem] p-6 md:p-8 shadow-2xl relative overflow-hidden">
       
-      {/* HEADER */}
-      <div className="flex flex-col items-center mb-12">
-        <h2 className="text-2xl font-black italic uppercase tracking-tighter text-white mb-2">Sunday Chef</h2>
-        <div className="flex items-center gap-6 bg-white/5 px-6 py-2 rounded-full border border-white/10">
+      <div className="flex flex-col items-center mb-10">
+        <h2 className="text-2xl font-black italic uppercase tracking-tighter text-white mb-4">Sunday Chef</h2>
+        <div className="flex items-center gap-6 bg-white/5 px-6 py-2 rounded-full border border-white/10 shadow-lg">
           <button onClick={() => setWeekOffset(prev => prev - 1)} className="text-slate-500 hover:text-white transition-colors">
             <ChevronLeft size={20} />
           </button>
-          <span className="text-xs font-black tracking-[0.3em] text-amber-500 uppercase">{formattedSunday}</span>
+          <span className="text-[10px] font-black tracking-[0.3em] text-amber-500 uppercase">{formattedSunday}</span>
           <button onClick={() => setWeekOffset(prev => prev + 1)} className="text-slate-500 hover:text-white transition-colors">
             <ChevronRight size={20} />
           </button>
         </div>
       </div>
 
-      {/* 8-AS RÁCS */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {Array.from({ length: 8 }).map((_, index) => {
           const meal = meals.find(m => m.day === index.toString())
@@ -95,23 +92,22 @@ export default function SundayChef({ userName }: { userName: string }) {
             <motion.div 
               key={index}
               layout
-              className={`relative h-32 rounded-[2rem] border transition-all duration-500 flex flex-col p-5 group ${
-                meal ? 'bg-white/5 border-white/10' : 'bg-transparent border-dashed border-white/5 hover:border-white/20'
+              className={`relative min-h-[120px] rounded-[2rem] border transition-all duration-500 flex flex-col p-5 ${
+                meal ? 'bg-white/5 border-white/10 shadow-xl' : 'bg-transparent border-dashed border-white/5'
               }`}
             >
               {meal ? (
                 <>
-                  <div className="flex justify-between items-start">
-                    <span className="text-sm font-bold text-white pr-8 leading-tight">{meal.dish_name}</span>
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="text-sm font-bold text-white pr-10 leading-tight">{meal.dish_name}</span>
                     <button 
                       onClick={async () => { await supabase.from('meal_planner').delete().eq('id', meal.id); fetchData() }}
-                      className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 p-2 text-slate-600 hover:text-red-500 transition-all"
+                      className="absolute top-4 right-4 p-2 text-amber-500/40 hover:text-amber-500 active:text-red-500 transition-all"
                     >
                       <Trash2 size={16} />
                     </button>
                   </div>
 
-                  {/* Értékelő pöttyök */}
                   <div className="mt-auto flex justify-between items-center">
                     <div className="flex gap-1.5">
                       {MEMBERS.map(member => {
@@ -130,12 +126,18 @@ export default function SundayChef({ userName }: { userName: string }) {
                       })}
                     </div>
                     
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => toggleRating(meal.id, true)} className={`p-1.5 rounded-lg ${ratings.find(r => r.meal_id === meal.id && r.member_name === userName && r.is_liked) ? 'text-emerald-500' : 'text-slate-600 hover:text-white'}`}>
-                        <ThumbsUp size={14} />
+                    <div className="flex gap-1">
+                      <button 
+                        onClick={() => toggleRating(meal.id, true)} 
+                        className={`p-2 rounded-xl transition-all ${ratings.find(r => r.meal_id === meal.id && r.member_name === userName && r.is_liked) ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' : 'text-amber-500/50'}`}
+                      >
+                        <ThumbsUp size={16} />
                       </button>
-                      <button onClick={() => toggleRating(meal.id, false)} className={`p-1.5 rounded-lg ${ratings.find(r => r.meal_id === meal.id && r.member_name === userName && !r.is_liked) ? 'text-red-500' : 'text-slate-600 hover:text-white'}`}>
-                        <ThumbsDown size={14} />
+                      <button 
+                        onClick={() => toggleRating(meal.id, false)} 
+                        className={`p-2 rounded-xl transition-all ${ratings.find(r => r.meal_id === meal.id && r.member_name === userName && !r.is_liked) ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' : 'text-amber-500/50'}`}
+                      >
+                        <ThumbsDown size={16} />
                       </button>
                     </div>
                   </div>
@@ -151,18 +153,18 @@ export default function SundayChef({ userName }: { userName: string }) {
                         onBlur={() => { if(!newDish) setEditingSlot(null) }}
                         onKeyDown={(e) => e.key === 'Enter' && saveMeal(index)}
                         placeholder="Étel neve..."
-                        className="flex-1 bg-white/10 border-none rounded-xl px-4 py-2 text-white text-xs font-bold outline-none"
+                        className="flex-1 bg-white/10 border-none rounded-xl px-4 py-3 text-white text-xs font-bold outline-none"
                       />
-                      <button onClick={() => saveMeal(index)} className="bg-amber-500 p-2 rounded-xl text-black">
-                        <Plus size={16} />
+                      <button onClick={() => saveMeal(index)} className="bg-amber-500 p-3 rounded-xl text-black shadow-lg shadow-amber-500/20">
+                        <Plus size={18} />
                       </button>
                     </motion.div>
                   ) : (
                     <button 
                       onClick={() => setEditingSlot(index)}
-                      className="text-slate-700 hover:text-slate-400 transition-colors"
+                      className="text-amber-500/20 hover:text-amber-500 transition-colors p-4"
                     >
-                      <Plus size={24} />
+                      <Plus size={28} />
                     </button>
                   )}
                 </div>
