@@ -83,7 +83,11 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
     fetchEvents();
   };
 
-  const jumpToToday = () => { setPivotDate(new Date()); setSelectedDate(formatDate(new Date())); setShowList(false); };
+  const jumpToToday = () => { 
+    setPivotDate(new Date()); 
+    setSelectedDate(formatDate(new Date())); 
+    setShowList(false); 
+  };
   
   const shiftView = (direction: number) => {
     const newDate = new Date(pivotDate);
@@ -135,12 +139,10 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
         <span className={`text-[9px] font-black uppercase ${active ? 'text-black/60' : 'text-slate-500'}`}>{date.toLocaleDateString('hu-HU', { weekday: 'short' })}</span>
         <span className="text-lg font-black">{date.getDate()}</span>
         
-        {/* Bal felső: Tagok (Restored) */}
         <div className="absolute left-1.5 top-1.5 flex flex-col gap-0.5">
           {activeMemberColors.map(m => <div key={m.name} className={`w-2 h-2 rounded-full shadow-lg ${m.color}`} />)}
         </div>
 
-        {/* Jobb felső: FONTOS (Restored) */}
         {hasImportant && (
           <div className="absolute -top-1 -right-1 h-3.5 w-3.5 z-20">
             <span className="animate-ping absolute h-full w-full rounded-full bg-red-400 opacity-75"></span>
@@ -148,16 +150,14 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
           </div>
         )}
 
-        {/* Jobb alsó: ÜGYELET (Restored) */}
         {hasDuty && <div className="absolute bottom-1.5 right-1.5 w-2.5 h-2.5 bg-blue-500 rounded-full shadow-md shadow-blue-500/50" />}
-
         {isToday && !active && <div className="absolute bottom-1 w-4 h-0.5 bg-emerald-500 rounded-full" />}
       </button>
     );
   };
 
   return (
-    <div className="space-y-4 max-w-4xl mx-auto pb-10">
+    <div className="space-y-4 max-w-4xl mx-auto pb-4">
       <div className="flex justify-end gap-2">
         <PushManager userId={currentUser.id} />
       </div>
@@ -182,7 +182,7 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
           <span className="mt-0.5">{filterMode === 'mine' ? 'Saját' : 'Összes'}</span>
         </button>
 
-        <button onClick={async () => { await supabase.auth.signOut(); window.location.href = '/' }} className="bg-slate-900 border border-slate-800 p-4 rounded-2xl text-slate-500 hover:text-red-400">
+        <button onClick={async () => { await supabase.auth.signOut(); window.location.href = '/' }} className="bg-slate-900 border border-slate-800 p-4 rounded-2xl text-slate-500 hover:text-red-400 transition-colors">
           <X size={18}/>
         </button>
       </div>
@@ -190,7 +190,7 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
       <div className="flex justify-between items-center bg-slate-900/40 p-2 rounded-2xl border border-slate-800/50 backdrop-blur-md">
         <div className="flex gap-1">
           <button onClick={() => shiftView(-1)} className="p-2 hover:bg-slate-800 rounded-xl text-white"><ChevronLeft size={20}/></button>
-          <button onClick={jumpToToday} className="px-4 py-1 text-xs font-black text-emerald-400">MA</button>
+          <button onClick={jumpToToday} className="px-4 py-1 text-xs font-black text-emerald-400 uppercase">MA</button>
           <button onClick={() => shiftView(1)} className="p-2 hover:bg-slate-800 rounded-xl text-white"><ChevronRight size={20}/></button>
         </div>
         <h3 className="text-sm font-black uppercase text-white tracking-widest">{pivotDate.toLocaleDateString('hu-HU', { month: 'long', year: 'numeric' })}</h3>
@@ -199,13 +199,13 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
         </button>
       </div>
 
-      <div className="min-h-[160px]">
+      {/* JAVÍTOTT: Dinamikus min-magasság a Gap ellen */}
+      <div className={`${view === 'day' ? 'min-h-[80px]' : 'min-h-[300px]'}`}>
         {view === 'day' ? (
           <div className="flex justify-between gap-2">
             {[...Array(7)].map((_, i) => { 
               const d = new Date(pivotDate); 
-              const day = d.getDay() === 0 ? 6 : d.getDay() - 1; // Hétfői igazítás
-              d.setDate(d.getDate() - day + i); 
+              d.setDate(d.getDate() + i); // JAVÍTOTT: Mindig a választott nap az első!
               return renderDayCard(d); 
             })}
           </div>
@@ -223,17 +223,17 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
 
       <AnimatePresence mode="wait">
         {showList && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="space-y-3">
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="space-y-3 mt-2">
             <div className="flex items-center gap-3 px-2">
                <div className="h-px flex-1 bg-white/5" />
                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{selectedDate}</span>
                <div className="h-px flex-1 bg-white/5" />
             </div>
             {getEventsForDate(selectedDate).length === 0 ? (
-              <p className="text-slate-600 italic text-sm text-center py-4 tracking-wide">Nincs mára tervezett program.</p>
+              <p className="text-slate-600 italic text-sm text-center py-4 tracking-wide font-bold uppercase">Nincs program erre a napra.</p>
             ) : (
               getEventsForDate(selectedDate).map(e => (
-                <div key={e.id} className={`group p-4 rounded-3xl border flex items-center justify-between transition-all ${e.is_duty ? 'bg-blue-600/10 border-blue-500/20 shadow-inner shadow-blue-500/5' : e.priority === 'fontos' ? 'bg-red-600/10 border-red-500/20 shadow-lg' : 'bg-slate-900/40 border-slate-800/50'}`}>
+                <div key={e.id} className={`group p-4 rounded-3xl border flex items-center justify-between transition-all ${e.is_duty ? 'bg-blue-600/10 border-blue-500/20 shadow-inner' : e.priority === 'fontos' ? 'bg-red-600/10 border-red-500/20 shadow-lg shadow-red-900/5' : 'bg-slate-900/40 border-slate-800/50'}`}>
                   <div className="flex gap-4 items-center flex-1 cursor-pointer" onClick={() => { setEditId(e.id); setTitle(e.title); setSelectedMembers(e.member_names || []); setTime(e.event_time.substring(0, 5)); setPriority(e.priority); setRecurrence(e.recurrence || 'none'); setShowAddForm(true); }}>
                     <span className="text-[10px] font-black text-slate-400 bg-slate-800 px-2 py-1 rounded-lg tabular-nums">{e.event_time.substring(0,5)}</span>
                     <div>
@@ -246,7 +246,7 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
                       </div>
                     </div>
                   </div>
-                  <button onClick={() => supabase.from('events').delete().eq('id', e.id).then(() => fetchEvents())} className="text-slate-600 hover:text-red-500 p-2 transition-colors active:scale-90"><Trash2 size={18}/></button>
+                  <button onClick={() => supabase.from('events').delete().eq('id', e.id).then(() => fetchEvents())} className="text-slate-600 hover:text-red-500 p-2 transition-colors"><Trash2 size={18}/></button>
                 </div>
               ))
             )}
@@ -257,7 +257,7 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
       <AnimatePresence>
         {showAddForm && (
           <motion.form initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-            onSubmit={(e) => { e.preventDefault(); handleAddEvent(); }} className="bg-white p-6 rounded-[2.5rem] shadow-2xl text-black space-y-4 mt-4"
+            onSubmit={(e) => { e.preventDefault(); handleAddEvent(); }} className="bg-white p-6 rounded-[2.5rem] shadow-2xl text-black space-y-4 mt-2"
           >
             <input type="text" placeholder="Mi a program?" value={title} onChange={e => setTitle(e.target.value)} autoFocus className="w-full bg-slate-100 p-4 rounded-2xl text-lg font-bold outline-none border-none focus:ring-2 focus:ring-emerald-500 transition-all" />
             <div className="flex flex-wrap gap-2">
