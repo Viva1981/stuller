@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/app/supabase';
-import { Edit2, Save, X, ChevronDown, ChevronUp, Calendar as CalendarIcon, Clock } from 'lucide-react';
+import { Edit2, Save, X, ChevronDown, ChevronUp, Calendar as CalendarIcon, Clock, AlertCircle } from 'lucide-react';
 
 // Csengetési rend
 const BELL_SCHEDULE = [
@@ -31,12 +31,13 @@ export default function SchoolTimetable({ owner }: { owner: string }) {
   const [timetable, setTimetable] = useState<TimetableItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
-  const [isOpen, setIsOpen] = useState(false); // Alapértelmezetten zárva
+  const [isOpen, setIsOpen] = useState(false); 
   
   // Modal állapota (Vizsga rögzítése)
   const [selectedSlot, setSelectedSlot] = useState<TimetableItem | null>(null);
   const [examDate, setExamDate] = useState('');
   const [examType, setExamType] = useState('Témazáró');
+  const [examPriority, setExamPriority] = useState<'normál' | 'fontos'>('normál'); // ÚJ: Prioritás
   const [isSavingExam, setIsSavingExam] = useState(false);
 
   useEffect(() => {
@@ -68,22 +69,25 @@ export default function SchoolTimetable({ owner }: { owner: string }) {
     fetchTimetable();
   };
 
-  // ESEMÉNY RÖGZÍTÉSE A FŐ NAPTÁRBA (public.events tábla)
+  // ESEMÉNY RÖGZÍTÉSE A FŐ NAPTÁRBA
   const handleExamSync = async () => {
     if (!selectedSlot || !examDate) return;
     setIsSavingExam(true);
+
+    // Időpont meghatározása az óra alapján
+    const scheduleTime = BELL_SCHEDULE.find(b => b.id === selectedSlot.period_index)?.start || '08:00';
 
     try {
         const title = `${examType}: ${selectedSlot.subject}`;
         
         const { error } = await supabase
-            .from('events') // A TE TÁBLÁD
+            .from('events')
             .insert({
                 title: title,
                 event_date: examDate,
-                event_time: '08:00', // Iskolakezdés ideje
-                member_names: [owner], // Tömbként mentjük a nevet
-                priority: 'fontos', // Hogy piros legyen
+                event_time: scheduleTime, // Automatikus időpont
+                member_names: [owner],
+                priority: examPriority, // Választott prioritás
                 category: 'iskola',
                 recurrence: 'none',
                 is_duty: false
@@ -91,9 +95,9 @@ export default function SchoolTimetable({ owner }: { owner: string }) {
 
         if (error) throw error;
         
-        // Vizuális visszajelzés helyett csak bezárjuk, a naptárban látszódni fog
         setSelectedSlot(null);
         setExamDate('');
+        setExamPriority('normál'); // Reset
     } catch (e) {
         console.error(e);
         alert('Hiba történt a mentéskor.');
@@ -106,7 +110,7 @@ export default function SchoolTimetable({ owner }: { owner: string }) {
 
   return (
     <div className="space-y-2">
-        {/* FEJLÉC (KATTINTÁSRA NYÍLIK) */}
+        {/* FEJLÉC */}
         <div 
             className="flex items-center justify-between bg-[#0a0c10] p-4 rounded-2xl border border-white/5 cursor-pointer hover:bg-white/5 transition-colors group"
         >
@@ -119,11 +123,11 @@ export default function SchoolTimetable({ owner }: { owner: string }) {
                 </h2>
             </div>
             
-            {/* SZERKESZTÉS GOMB (CSAK IKON) */}
+            {/* SZERKESZTÉS GOMB */}
             {isOpen && (
                  <button
                  onClick={(e) => {
-                     e.stopPropagation(); // Hogy ne csukódjon be a lista
+                     e.stopPropagation();
                      setIsEditing(!isEditing);
                  }}
                  className={`p-3 rounded-xl transition-all ${
@@ -230,9 +234,16 @@ export default function SchoolTimetable({ owner }: { owner: string }) {
                         </button>
 
                         <h3 className="text-2xl font-black text-white italic tracking-wide mb-1">MI LESZ?</h3>
-                        <p className="text-amber-500 font-bold text-lg mb-6">{selectedSlot.subject} órán</p>
+                        <p className="text-amber-500 font-bold text-lg mb-6">
+                            {selectedSlot.subject} 
+                            <span className="text-white/30 text-sm ml-2">
+                                ({BELL_SCHEDULE.find(b => b.id === selectedSlot.period_index)?.start})
+                            </span>
+                        </p>
 
                         <div className="space-y-6">
+                            
+                            {/* TÍPUS VÁLASZTÓ */}
                             <div>
                                 <label className="text-[10px] text-white/40 uppercase tracking-[0.2em] block mb-3 font-bold">Esemény típusa</label>
                                 <div className="flex flex-wrap gap-2">
@@ -252,16 +263,45 @@ export default function SchoolTimetable({ owner }: { owner: string }) {
                                 </div>
                             </div>
 
+                            {/* DÁTUM VÁLASZTÓ (JAVÍTVA DESKTOPRA) */}
                             <div>
                                 <label className="text-[10px] text-white/40 uppercase tracking-[0.2em] block mb-3 font-bold">Mikor?</label>
-                                <input 
-                                    type="date" 
-                                    value={examDate}
-                                    onChange={(e) => setExamDate(e.target.value)}
-                                    className="w-full bg-[#050608] border-2 border-white/10 rounded-xl p-4 text-white font-bold focus:border-amber-500 focus:outline-none transition-colors"
-                                />
+                                <div className="relative">
+                                    <input 
+                                        type="date" 
+                                        value={examDate}
+                                        onClick={(e) => {
+                                            // Asztali gépen kényszerítjük a megnyitást
+                                            try {
+                                                (e.target as HTMLInputElement).showPicker();
+                                            } catch (err) {
+                                                // Ha nem támogatott, nem történik semmi
+                                            }
+                                        }}
+                                        onChange={(e) => setExamDate(e.target.value)}
+                                        className="w-full bg-[#050608] border-2 border-white/10 rounded-xl p-4 text-white font-bold focus:border-amber-500 focus:outline-none transition-colors cursor-pointer"
+                                    />
+                                    <CalendarIcon className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" size={20} />
+                                </div>
                             </div>
 
+                            {/* PRIORITÁS VÁLASZTÓ (ÚJ) */}
+                            <div>
+                                <label className="text-[10px] text-white/40 uppercase tracking-[0.2em] block mb-3 font-bold">Prioritás</label>
+                                <button 
+                                    onClick={() => setExamPriority(examPriority === 'fontos' ? 'normál' : 'fontos')}
+                                    className={`w-full flex items-center justify-center gap-3 p-4 rounded-xl font-black text-xs border-2 transition-all uppercase tracking-widest ${
+                                        examPriority === 'fontos' 
+                                            ? 'bg-red-600 border-red-600 text-white shadow-[0_0_20px_rgba(220,38,38,0.4)]' 
+                                            : 'bg-white/5 border-white/10 text-white/50 hover:border-white/30'
+                                    }`}
+                                >
+                                    <AlertCircle size={18} />
+                                    {examPriority === 'fontos' ? 'Kiemelt fontosságú' : 'Normál esemény'}
+                                </button>
+                            </div>
+
+                            {/* MENTÉS GOMB */}
                             <button 
                                 onClick={handleExamSync}
                                 disabled={isSavingExam || !examDate}
