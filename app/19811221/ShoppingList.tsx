@@ -1,17 +1,20 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { motion, AnimatePresence, Reorder } from 'framer-motion'
-import { ShoppingBag, Trash2, CheckCircle2, Circle, Plus } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Trash2, CheckCircle2, Circle, Plus, Star } from 'lucide-react'
 import { supabase } from '../supabase'
 
 export default function ShoppingList({ userName }: { userName: string }) {
   const [items, setItems] = useState<any[]>([])
   const [newItem, setNewItem] = useState('')
+  const [isSpecial, setIsSpecial] = useState(false)
 
   useEffect(() => {
     fetchItems()
-    const channel = supabase.channel('shopping_changes').on('postgres_changes' as any, { event: '*', table: 'shopping_list' }, () => { fetchItems() }).subscribe()
+    const channel = supabase.channel('shopping_changes')
+      .on('postgres_changes' as any, { event: '*', table: 'shopping_list' }, () => { fetchItems() })
+      .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [])
 
@@ -23,8 +26,13 @@ export default function ShoppingList({ userName }: { userName: string }) {
   async function addItem(e: React.FormEvent) {
     e.preventDefault()
     if (!newItem) return
-    await supabase.from('shopping_list').insert([{ item: newItem, added_by: userName }])
+    await supabase.from('shopping_list').insert([{ 
+      item: newItem, 
+      added_by: userName,
+      is_special: isSpecial 
+    }])
     setNewItem('')
+    setIsSpecial(false)
   }
 
   async function toggleComplete(id: string, currentStatus: boolean) {
@@ -36,31 +44,49 @@ export default function ShoppingList({ userName }: { userName: string }) {
   }
 
   return (
-    <div className="bg-slate-900/40 border border-white/5 rounded-[2.5rem] p-6 backdrop-blur-xl shadow-2xl flex flex-col h-full min-h-[500px]">
-      <div className="flex items-center gap-3 mb-8">
-        <div className="bg-emerald-500/20 p-3 rounded-2xl">
-          <ShoppingBag className="text-emerald-500" size={24} />
-        </div>
-        <div>
-          <h2 className="text-xl font-black italic uppercase tracking-tighter">Kosár</h2>
-          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{items.filter(i => !i.is_completed).length} tétel maradt</p>
-        </div>
+    <div className="bg-[#0a0c10]/60 border border-white/5 rounded-[2.5rem] p-6 md:p-8 backdrop-blur-md shadow-2xl overflow-hidden">
+      
+      {/* HEADER - Minimalista, ikon nélkül */}
+      <div className="flex flex-col items-center mb-8">
+        <h2 className="text-xl font-black italic uppercase tracking-tighter text-white">Bevásárlólista</h2>
+        <p className="text-[10px] text-amber-500 font-bold uppercase tracking-[0.3em] mt-1">
+          {items.filter(i => !i.is_completed).length} tétel maradt
+        </p>
       </div>
 
-      <form onSubmit={addItem} className="relative mb-8">
-        <input
-          type="text"
-          value={newItem}
-          onChange={(e) => setNewItem(e.target.value)}
-          placeholder="Valami elfogyott?"
-          className="w-full bg-white/5 border border-white/10 p-5 pr-16 rounded-[1.5rem] text-white font-bold outline-none focus:ring-2 focus:ring-emerald-500 transition-all placeholder:text-slate-600"
-        />
-        <button type="submit" className="absolute right-2 top-2 bottom-2 bg-emerald-500 text-black px-4 rounded-xl font-black active:scale-90 transition-all">
-          <Plus />
-        </button>
+      {/* INPUT MEZŐ */}
+      <form onSubmit={addItem} className="relative mb-8 group">
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <input
+              type="text"
+              value={newItem}
+              onChange={(e) => setNewItem(e.target.value)}
+              placeholder="Valami elfogyott?"
+              className="w-full bg-white/5 border border-white/10 p-4 pr-12 rounded-2xl text-white font-bold outline-none focus:border-amber-500/50 transition-all placeholder:text-slate-600 text-sm"
+            />
+            {/* Speciális tétel kapcsoló (Csillag ikon) */}
+            <button 
+              type="button"
+              onClick={() => setIsSpecial(!isSpecial)}
+              className={`absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-xl transition-all ${isSpecial ? 'text-amber-500 bg-amber-500/10' : 'text-slate-600'}`}
+            >
+              <Star size={18} fill={isSpecial ? "currentColor" : "none"} />
+            </button>
+          </div>
+          <button type="submit" className="bg-amber-500 text-black p-4 rounded-2xl font-black active:scale-90 transition-all shadow-lg shadow-amber-500/20">
+            <Plus size={20} />
+          </button>
+        </div>
+        {isSpecial && (
+          <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-[9px] font-black text-amber-500 uppercase tracking-widest mt-2 ml-2">
+            ✨ Speciális tétel (nem beszerezhető bárhol)
+          </motion.p>
+        )}
       </form>
 
-      <div className="space-y-3 overflow-y-auto pr-2 custom-scrollbar">
+      {/* LISTA */}
+      <div className="space-y-3">
         <AnimatePresence mode="popLayout" initial={false}>
           {items.map((item) => (
             <motion.div
@@ -69,28 +95,53 @@ export default function ShoppingList({ userName }: { userName: string }) {
               initial={{ x: -20, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
               exit={{ scale: 0.8, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              className={`group flex items-center justify-between p-5 rounded-[1.5rem] border transition-all ${
-                item.is_completed ? 'bg-emerald-500/5 border-emerald-500/10' : 'bg-slate-800/50 border-white/5'
+              className={`group relative flex items-center justify-between p-4 rounded-2xl border transition-all ${
+                item.is_completed 
+                  ? 'bg-white/5 border-transparent opacity-40' 
+                  : item.is_special 
+                    ? 'bg-amber-500/5 border-amber-500/20 shadow-lg shadow-amber-500/5' 
+                    : 'bg-white/5 border-white/5'
               }`}
             >
               <div 
-                className="flex items-center gap-4 cursor-pointer grow" 
+                className="flex items-center gap-4 cursor-pointer grow pr-10" 
                 onClick={() => toggleComplete(item.id, item.is_completed)}
               >
-                <motion.div whileTap={{ scale: 0.8 }}>
-                  {item.is_completed ? <CheckCircle2 className="text-emerald-500" /> : <Circle className="text-slate-600" />}
-                </motion.div>
-                <span className={`font-bold text-sm transition-all ${item.is_completed ? 'line-through text-slate-600' : 'text-white'}`}>
-                  {item.item}
-                </span>
+                <div className="shrink-0">
+                  {item.is_completed ? (
+                    <CheckCircle2 className="text-amber-500" size={20} />
+                  ) : (
+                    <Circle className={item.is_special ? "text-amber-500" : "text-slate-700"} size={20} />
+                  )}
+                </div>
+                <div className="flex flex-col">
+                  <span className={`font-bold text-sm transition-all ${item.is_completed ? 'line-through text-slate-500' : 'text-white'}`}>
+                    {item.item}
+                  </span>
+                  {!item.is_completed && (
+                    <span className="text-[9px] font-black text-slate-600 uppercase tracking-tighter">
+                      Hozzáadta: {item.added_by}
+                    </span>
+                  )}
+                </div>
               </div>
-              <button onClick={() => deleteItem(item.id)} className="opacity-0 group-hover:opacity-100 p-2 text-slate-600 hover:text-red-500 transition-all">
-                <Trash2 size={18} />
+
+              {/* Törlés gomb - Fixen látható mobilon is, narancs színben */}
+              <button 
+                onClick={() => deleteItem(item.id)} 
+                className="absolute right-3 p-2 text-amber-500/30 hover:text-red-500 transition-all"
+              >
+                <Trash2 size={16} />
               </button>
             </motion.div>
           ))}
         </AnimatePresence>
+
+        {items.length === 0 && (
+          <p className="text-[10px] text-slate-700 text-center py-10 font-bold uppercase tracking-[0.4em]">
+            A lista üres
+          </p>
+        )}
       </div>
     </div>
   )
