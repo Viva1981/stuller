@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { supabase } from '@/app/supabase'; // Figyelj az importra, lehet ../../supabase kell
-import { Edit2, Save, X, Plus, Calendar as CalendarIcon, Clock, Bell } from 'lucide-react';
+import { supabase } from '@/app/supabase';
+import { Edit2, Save, X, ChevronDown, ChevronUp, Calendar as CalendarIcon, Clock } from 'lucide-react';
 
-// Csengetési rend (A fotó alapján)
+// Csengetési rend
 const BELL_SCHEDULE = [
   { id: 1, start: '08:00', end: '08:45' },
   { id: 2, start: '08:55', end: '09:40' },
@@ -13,8 +13,8 @@ const BELL_SCHEDULE = [
   { id: 4, start: '10:55', end: '11:40' },
   { id: 5, start: '11:50', end: '12:35' },
   { id: 6, start: '12:45', end: '13:30' },
-  { id: 7, start: '13:35', end: '14:20' }, // Saccolt 7. óra
-  { id: 8, start: '14:25', end: '15:10' }, // Saccolt 8. óra
+  { id: 7, start: '13:35', end: '14:20' },
+  { id: 8, start: '14:25', end: '15:10' },
 ];
 
 const DAYS = ['Hétfő', 'Kedd', 'Szerda', 'Csütörtök', 'Péntek'];
@@ -31,6 +31,7 @@ export default function SchoolTimetable({ owner }: { owner: string }) {
   const [timetable, setTimetable] = useState<TimetableItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
+  const [isOpen, setIsOpen] = useState(false); // Alapértelmezetten zárva
   
   // Modal állapota (Vizsga rögzítése)
   const [selectedSlot, setSelectedSlot] = useState<TimetableItem | null>(null);
@@ -43,7 +44,7 @@ export default function SchoolTimetable({ owner }: { owner: string }) {
   }, [owner]);
 
   const fetchTimetable = async () => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('school_timetable')
       .select('*')
       .eq('owner', owner);
@@ -53,53 +54,44 @@ export default function SchoolTimetable({ owner }: { owner: string }) {
   };
 
   const handleSaveCell = async (dayIdx: number, periodIdx: number, value: string) => {
-    if (!value.trim()) return; // Üreset nem mentünk (vagy törlés logika kéne)
+    if (!value.trim()) return;
 
-    // Megnézzük van-e már ilyen
     const existing = timetable.find(t => t.day_index === dayIdx && t.period_index === periodIdx);
 
     if (existing) {
-        // Update
-        await supabase
-            .from('school_timetable')
-            .update({ subject: value })
-            .eq('id', existing.id);
+        await supabase.from('school_timetable').update({ subject: value }).eq('id', existing.id);
     } else {
-        // Insert
-        await supabase
-            .from('school_timetable')
-            .insert({
-                owner,
-                day_index: dayIdx,
-                period_index: periodIdx,
-                subject: value
-            });
+        await supabase.from('school_timetable').insert({
+            owner, day_index: dayIdx, period_index: periodIdx, subject: value
+        });
     }
-    fetchTimetable(); // Frissítés
+    fetchTimetable();
   };
 
+  // ESEMÉNY RÖGZÍTÉSE A FŐ NAPTÁRBA (public.events tábla)
   const handleExamSync = async () => {
     if (!selectedSlot || !examDate) return;
     setIsSavingExam(true);
 
     try {
-        const title = `${examType}: ${selectedSlot.subject} (${owner})`;
+        const title = `${examType}: ${selectedSlot.subject}`;
         
-        // Beszúrás a fő naptárba
         const { error } = await supabase
-            .from('calendar_events')
+            .from('events') // A TE TÁBLÁD
             .insert({
                 title: title,
-                start_time: `${examDate}T08:00:00`, // Default reggel 8
-                end_time: `${examDate}T09:00:00`,
-                is_important: true, // Fontos, mert TZ!
-                family_members: [owner], // Csak az adott gyerekhez rendeljük
-                color: owner === 'Adél' ? 'purple' : 'teal' // Színkód
+                event_date: examDate,
+                event_time: '08:00', // Iskolakezdés ideje
+                member_names: [owner], // Tömbként mentjük a nevet
+                priority: 'fontos', // Hogy piros legyen
+                category: 'iskola',
+                recurrence: 'none',
+                is_duty: false
             });
 
         if (error) throw error;
         
-        alert('Sikeresen rögzítve a naptárba!');
+        // Vizuális visszajelzés helyett csak bezárjuk, a naptárban látszódni fog
         setSelectedSlot(null);
         setExamDate('');
     } catch (e) {
@@ -110,105 +102,113 @@ export default function SchoolTimetable({ owner }: { owner: string }) {
     }
   };
 
-  if (loading) return <div className="text-white/50 text-center p-10">Órarend betöltése...</div>;
+  if (loading) return null;
 
   return (
-    <div className="space-y-6">
-        {/* FEJLÉC */}
-        <div className="flex items-center justify-between bg-white/5 p-4 rounded-2xl backdrop-blur-md border border-white/10">
-            <div className="flex items-center gap-3">
-                <div className={`p-3 rounded-full ${owner === 'Adél' ? 'bg-purple-500/20 text-purple-400' : 'bg-teal-500/20 text-teal-400'}`}>
-                    <CalendarIcon size={24} />
+    <div className="space-y-2">
+        {/* FEJLÉC (KATTINTÁSRA NYÍLIK) */}
+        <div 
+            className="flex items-center justify-between bg-[#0a0c10] p-4 rounded-2xl border border-white/5 cursor-pointer hover:bg-white/5 transition-colors group"
+        >
+            <div className="flex items-center gap-4 flex-1" onClick={() => setIsOpen(!isOpen)}>
+                <div className={`transition-transform duration-300 ${isOpen ? 'rotate-180' : 'rotate-0'}`}>
+                    {isOpen ? <ChevronUp className="text-white/50" /> : <ChevronDown className="text-white/50" />}
                 </div>
-                <div>
-                    <h2 className="text-xl font-bold text-white">{owner} Órarendje</h2>
-                    <p className="text-xs text-white/50 uppercase tracking-widest">2025/2026 Tanév</p>
-                </div>
+                <h2 className="text-xl font-black italic tracking-wider text-white uppercase">
+                    {owner} Órarendje
+                </h2>
             </div>
             
-            <button
-                onClick={() => setIsEditing(!isEditing)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-                    isEditing ? 'bg-emerald-500 text-black' : 'bg-white/10 text-white hover:bg-white/20'
-                }`}
-            >
-                {isEditing ? <Save size={18} /> : <Edit2 size={18} />}
-                {isEditing ? 'Kész' : 'Szerkesztés'}
-            </button>
+            {/* SZERKESZTÉS GOMB (CSAK IKON) */}
+            {isOpen && (
+                 <button
+                 onClick={(e) => {
+                     e.stopPropagation(); // Hogy ne csukódjon be a lista
+                     setIsEditing(!isEditing);
+                 }}
+                 className={`p-3 rounded-xl transition-all ${
+                     isEditing ? 'bg-emerald-500 text-black shadow-[0_0_15px_rgba(16,185,129,0.4)]' : 'bg-white/5 text-white/50 hover:bg-white/10 hover:text-white'
+                 }`}
+             >
+                 {isEditing ? <Save size={20} /> : <Edit2 size={20} />}
+             </button>
+            )}
         </div>
 
-        {/* ÓRAREND GRID */}
-        <div className="overflow-x-auto pb-4">
-            <div className="min-w-[800px] grid grid-cols-[auto_1fr_1fr_1fr_1fr_1fr] gap-2">
-                
-                {/* Fejléc sor */}
-                <div className="bg-white/5 rounded-xl p-3 flex items-center justify-center border border-white/5">
-                    <Clock size={20} className="text-amber-500" />
-                </div>
-                {DAYS.map((day, i) => (
-                    <div key={day} className="bg-black/40 rounded-xl p-3 text-center border border-white/5">
-                        <span className="text-sm font-black text-white/70 uppercase tracking-wider">{day}</span>
-                    </div>
-                ))}
-
-                {/* Sorok (Órák) */}
-                {BELL_SCHEDULE.map((bell) => (
-                    <>
-                        {/* Idő oszlop */}
-                        <div className="bg-white/5 rounded-xl p-2 flex flex-col items-center justify-center text-xs text-white/50 border border-white/5 w-24">
-                            <span className="font-bold text-lg text-white/80">{bell.id}.</span>
-                            <span>{bell.start}</span>
-                            <span className="w-full h-px bg-white/10 my-1"></span>
-                            <span>{bell.end}</span>
-                        </div>
-
-                        {/* Napok oszlopai */}
-                        {DAYS.map((_, dayIdx) => {
-                            const subject = timetable.find(t => t.day_index === dayIdx && t.period_index === bell.id)?.subject || '';
+        {/* LENYÍLÓ TARTALOM */}
+        <AnimatePresence>
+            {isOpen && (
+                <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                    className="overflow-hidden"
+                >
+                    <div className="overflow-x-auto pb-4 pt-2">
+                        <div className="min-w-[800px] grid grid-cols-[auto_1fr_1fr_1fr_1fr_1fr] gap-2">
                             
-                            return (
-                                <motion.div
-                                    key={`${dayIdx}-${bell.id}`}
-                                    layout
-                                    onClick={() => {
-                                        if (!isEditing && subject) setSelectedSlot({ day_index: dayIdx, period_index: bell.id, subject, owner });
-                                    }}
-                                    className={`relative min-h-[80px] rounded-xl border border-white/5 p-2 flex items-center justify-center text-center transition-colors ${
-                                        isEditing 
-                                            ? 'bg-white/5 hover:bg-white/10 cursor-text' 
-                                            : subject 
-                                                ? 'bg-gradient-to-br from-white/10 to-transparent hover:border-amber-500/50 cursor-pointer group' 
-                                                : 'bg-transparent'
-                                    }`}
-                                >
-                                    {isEditing ? (
-                                        <input 
-                                            type="text" 
-                                            defaultValue={subject}
-                                            className="w-full h-full bg-transparent text-center text-sm focus:outline-none text-white placeholder-white/20"
-                                            placeholder="..."
-                                            onBlur={(e) => handleSaveCell(dayIdx, bell.id, e.target.value)}
-                                        />
-                                    ) : (
-                                        <>
-                                            <span className="font-medium text-sm text-white/90 group-hover:scale-105 transition-transform">
-                                                {subject}
-                                            </span>
-                                            {/* Hover effekt ha van tárgy */}
-                                            {subject && (
-                                                <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <div className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]"></div>
-                                                </div>
-                                            )}
-                                        </>
-                                    )}
-                                </motion.div>
-                            );
-                        })}
-                    </>
-                ))}
-            </div>
-        </div>
+                            {/* Fejléc sor */}
+                            <div className="bg-white/5 rounded-xl p-3 flex items-center justify-center border border-white/5">
+                                <Clock size={20} className="text-amber-500" />
+                            </div>
+                            {DAYS.map((day) => (
+                                <div key={day} className="bg-black/40 rounded-xl p-3 text-center border border-white/5">
+                                    <span className="text-sm font-black text-white/70 uppercase tracking-wider">{day}</span>
+                                </div>
+                            ))}
+
+                            {/* Sorok (Órák) */}
+                            {BELL_SCHEDULE.map((bell) => (
+                                <>
+                                    {/* Idő oszlop */}
+                                    <div className="bg-white/5 rounded-xl p-2 flex flex-col items-center justify-center text-xs text-white/50 border border-white/5 w-24">
+                                        <span className="font-bold text-lg text-white/80">{bell.id}.</span>
+                                        <span className="opacity-50">{bell.start}</span>
+                                    </div>
+
+                                    {/* Napok oszlopai */}
+                                    {DAYS.map((_, dayIdx) => {
+                                        const subject = timetable.find(t => t.day_index === dayIdx && t.period_index === bell.id)?.subject || '';
+                                        
+                                        return (
+                                            <motion.div
+                                                key={`${dayIdx}-${bell.id}`}
+                                                layout
+                                                onClick={() => {
+                                                    if (!isEditing && subject) setSelectedSlot({ day_index: dayIdx, period_index: bell.id, subject, owner });
+                                                }}
+                                                className={`relative min-h-[60px] rounded-xl border border-white/5 p-2 flex items-center justify-center text-center transition-colors ${
+                                                    isEditing 
+                                                        ? 'bg-white/5 hover:bg-white/10 cursor-text' 
+                                                        : subject 
+                                                            ? 'bg-gradient-to-br from-white/10 to-transparent hover:border-amber-500/50 cursor-pointer group' 
+                                                            : 'bg-transparent'
+                                                }`}
+                                            >
+                                                {isEditing ? (
+                                                    <input 
+                                                        type="text" 
+                                                        defaultValue={subject}
+                                                        className="w-full h-full bg-transparent text-center text-sm focus:outline-none text-white placeholder-white/20 font-bold"
+                                                        placeholder="-"
+                                                        onBlur={(e) => handleSaveCell(dayIdx, bell.id, e.target.value)}
+                                                    />
+                                                ) : (
+                                                    <span className="font-bold text-sm text-white/90 group-hover:scale-105 transition-transform">
+                                                        {subject}
+                                                    </span>
+                                                )}
+                                            </motion.div>
+                                        );
+                                    })}
+                                </>
+                            ))}
+                        </div>
+                    </div>
+                </motion.div>
+            )}
+        </AnimatePresence>
 
         {/* MODAL: VIZSGA HOZZÁADÁSA */}
         <AnimatePresence>
@@ -223,30 +223,27 @@ export default function SchoolTimetable({ owner }: { owner: string }) {
                         initial={{ scale: 0.9, y: 20 }}
                         animate={{ scale: 1, y: 0 }}
                         exit={{ scale: 0.9, y: 20 }}
-                        className="bg-[#0f1115] w-full max-w-md rounded-3xl border border-white/10 p-6 shadow-2xl"
+                        className="bg-[#0f1115] w-full max-w-md rounded-[2rem] border border-white/10 p-8 shadow-2xl relative"
                     >
-                        <div className="flex justify-between items-start mb-6">
-                            <div>
-                                <h3 className="text-xl font-bold text-white">Esemény rögzítése</h3>
-                                <p className="text-amber-500 font-medium">{selectedSlot.subject}</p>
-                            </div>
-                            <button onClick={() => setSelectedSlot(null)} className="p-2 bg-white/5 rounded-full hover:bg-white/10">
-                                <X size={20} />
-                            </button>
-                        </div>
+                        <button onClick={() => setSelectedSlot(null)} className="absolute top-4 right-4 p-2 bg-white/5 rounded-full hover:bg-white/10 text-white/50 hover:text-white">
+                            <X size={20} />
+                        </button>
 
-                        <div className="space-y-4">
+                        <h3 className="text-2xl font-black text-white italic tracking-wide mb-1">MI LESZ?</h3>
+                        <p className="text-amber-500 font-bold text-lg mb-6">{selectedSlot.subject} órán</p>
+
+                        <div className="space-y-6">
                             <div>
-                                <label className="text-xs text-white/50 uppercase tracking-wider block mb-2">Esemény típusa</label>
-                                <div className="flex gap-2">
+                                <label className="text-[10px] text-white/40 uppercase tracking-[0.2em] block mb-3 font-bold">Esemény típusa</label>
+                                <div className="flex flex-wrap gap-2">
                                     {['Témazáró', 'Dolgozat', 'Felelés', 'Házi feladat'].map(type => (
                                         <button
                                             key={type}
                                             onClick={() => setExamType(type)}
-                                            className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+                                            className={`px-4 py-2 rounded-xl text-xs font-black border-2 transition-all uppercase ${
                                                 examType === type 
-                                                    ? 'bg-amber-500 border-amber-500 text-black' 
-                                                    : 'bg-transparent border-white/20 text-white/60'
+                                                    ? 'bg-amber-500 border-amber-500 text-black shadow-[0_0_15px_rgba(245,158,11,0.4)]' 
+                                                    : 'bg-transparent border-white/10 text-white/60 hover:border-white/30'
                                             }`}
                                         >
                                             {type}
@@ -256,19 +253,19 @@ export default function SchoolTimetable({ owner }: { owner: string }) {
                             </div>
 
                             <div>
-                                <label className="text-xs text-white/50 uppercase tracking-wider block mb-2">Dátum</label>
+                                <label className="text-[10px] text-white/40 uppercase tracking-[0.2em] block mb-3 font-bold">Mikor?</label>
                                 <input 
                                     type="date" 
                                     value={examDate}
                                     onChange={(e) => setExamDate(e.target.value)}
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white focus:border-amber-500 focus:outline-none"
+                                    className="w-full bg-[#050608] border-2 border-white/10 rounded-xl p-4 text-white font-bold focus:border-amber-500 focus:outline-none transition-colors"
                                 />
                             </div>
 
                             <button 
                                 onClick={handleExamSync}
                                 disabled={isSavingExam || !examDate}
-                                className="w-full h-12 bg-emerald-500 rounded-xl font-bold text-black hover:bg-emerald-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                className="w-full h-14 bg-emerald-500 rounded-2xl font-black text-black hover:bg-emerald-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm uppercase tracking-widest hover:scale-[1.02] active:scale-95"
                             >
                                 {isSavingExam ? 'Mentés...' : 'Rögzítés a Naptárba'}
                                 {!isSavingExam && <CalendarIcon size={18} />}
