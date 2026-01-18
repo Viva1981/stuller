@@ -1,0 +1,1 @@
+export default function Page() { return <div className="text-white p-10">Fejlesztés alatt... <a href="/19811221" className="underline">Vissza</a></div> }
