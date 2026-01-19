@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import webPush from 'web-push'; // KÖZVETLEN IMPORT
+import webPush from 'web-push';
 
-// Beállítjuk a web-push adatokat itt helyben
 webPush.setVapidDetails(
   'mailto:stuller.zsolt@gmail.com',
   process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
@@ -19,44 +18,30 @@ const supabase = createClient(
 );
 
 export async function GET() {
-  console.log('--- 🤖 CRON ROBOT INDUL (DIRECT MODE) ---');
+  console.log('--- 🤖 CRON ROBOT INDUL (CLEANER MODE) ---');
   
   const nowUTC = new Date();
   const timeZone = "Europe/Budapest";
   const nowInBudapest = new Date(nowUTC.toLocaleString("en-US", { timeZone }));
 
-  console.log(`Idő: ${nowInBudapest.toLocaleString('hu-HU')}`);
-
   try {
-    // --- 1. Feliratkozók ---
+    // 1. Feliratkozók lekérése (ID-val együtt, hogy tudjunk törölni)
     const { data: rawSubs, error: subError } = await supabase
       .from('push_subscriptions')
-      .select('subscription_json');
+      .select('id, subscription_json'); // ID is kell!
     
     if (subError) throw subError;
+    if (!rawSubs || rawSubs.length === 0) return NextResponse.json({ status: 'nincs feliratkozó' });
 
-    const subs = rawSubs
-      ?.map(s => (typeof s.subscription_json === 'string' ? JSON.parse(s.subscription_json) : s.subscription_json))
-      .filter(isValidSubscription);
-
-    if (!subs || subs.length === 0) {
-      return NextResponse.json({ status: 'nincs feliratkozó' });
-    }
-
-    // --- 2. Események ---
+    // 2. Események lekérése
     const { data: events, error: eventError } = await supabase
       .from('events')
       .select('*')
       .or('reminder_1d_sent.eq.false,reminder_1h_sent.eq.false');
 
     if (eventError) throw eventError;
-    
+
     const targetEvents = events?.filter(e => e.priority === 'fontos' || e.is_duty === true) || [];
-
-    if (targetEvents.length === 0) {
-      return NextResponse.json({ status: 'nincs esemény' });
-    }
-
     let sentCount = 0;
 
     for (const event of targetEvents) {
@@ -65,24 +50,22 @@ export async function GET() {
       const diffMs = eventDate.getTime() - nowInBudapest.getTime();
       const diffHours = diffMs / (1000 * 60 * 60);
 
-      console.log(`Vizsgálat: ${event.title} | Hátravan: ${diffHours.toFixed(2)} óra`);
-
+      // Logika: 
+      // 20-30 óra: HOLNAP (24h)
+      // 0-1.5 óra: HAMAROSAN (1h)
       let type = "";
       let updateField = "";
 
-      // HOLNAP
       if (diffHours >= 20 && diffHours <= 30 && !event.reminder_1d_sent) {
         type = "HOLNAP";
         updateField = "reminder_1d_sent";
-      } 
-      // HAMAROSAN
-      else if (diffHours > 0 && diffHours <= 1.5 && !event.reminder_1h_sent) {
+      } else if (diffHours > 0 && diffHours <= 1.5 && !event.reminder_1h_sent) {
         type = "HAMAROSAN";
         updateField = "reminder_1h_sent";
       }
 
       if (type && updateField) {
-        console.log(`🚀 KÜLDÉS: ${event.title} (${type})`);
+        console.log(`🚀 CRON KÜLDÉS: ${event.title} (${type})`);
         
         const who = event.is_duty ? '🛡️ ÜGYELET' : (event.member_names?.join(', ') || 'Család');
         const titleText = event.is_duty ? `ÜGYELET: ${type}` : `EMLÉKEZTETŐ: ${type}`;
@@ -91,24 +74,32 @@ export async function GET() {
           title: titleText,
           body: `${who}: ${event.title} - ${event.event_time.substring(0, 5)}`,
           url: '/19811221',
-          icon: '/icon-192x192.png' // Opcionális
+          icon: '/icon-192x192.png'
         });
 
-        // --- ITT A VÁLTOZÁS: Közvetlenül küldjük a web-push-sal ---
-        // Minden feliratkozónak elküldjük párhuzamosan
-        const sendPromises = subs.map(sub => 
-          webPush.sendNotification(sub, payload)
-            .then(() => ({ success: true }))
-            .catch(err => {
-              console.error('WebPush hiba egy feliratkozónál:', err.statusCode);
-              // Ha 410 (Gone), akkor törölni kéne, de most ne bonyolítsuk
-              return { success: false };
-            })
-        );
+        // Párhuzamos küldés és hibakezelés (törlés ha 410)
+        const sendPromises = rawSubs.map(async (record) => {
+          let subPayload = record.subscription_json;
+          if (typeof subPayload === 'string') subPayload = JSON.parse(subPayload);
+          
+          if (!isValidSubscription(subPayload)) return;
+
+          try {
+            await webPush.sendNotification(subPayload, payload);
+          } catch (err: any) {
+            // HA A FELIRATKOZÁS HALOTT (410 vagy 404), TÖRÖLJÜK A DB-BŐL
+            if (err.statusCode === 410 || err.statusCode === 404) {
+              console.log(`🗑️ Halott feliratkozás törlése (ID: ${record.id})`);
+              await supabase.from('push_subscriptions').delete().eq('id', record.id);
+            } else {
+              console.error('Push hiba:', err.statusCode);
+            }
+          }
+        });
 
         await Promise.all(sendPromises);
-
-        // Adatbázis frissítése
+        
+        // Esemény frissítése, hogy ne küldje újra
         await supabase.from('events').update({ [updateField]: true }).eq('id', event.id);
         sentCount++;
       }

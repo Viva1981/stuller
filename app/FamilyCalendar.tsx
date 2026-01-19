@@ -56,12 +56,14 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
   const handleAddEvent = async (customTitle?: string, isDutyEvent: boolean = false) => {
     const finalTitle = isDutyEvent ? "Ügyelet" : title;
     if (!finalTitle && !isDutyEvent) return;
+    
     let finalTime = time;
     if (isDutyEvent) {
       const d = new Date(selectedDate);
       const day = d.getDay();
       finalTime = (day === 0 || day === 6) ? "08:00" : "17:00";
     }
+
     const eventData = { 
       title: finalTitle, 
       event_date: selectedDate, 
@@ -71,11 +73,37 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
       is_duty: isDutyEvent,
       recurrence: isDutyEvent ? 'none' : recurrence
     };
+
+    let result;
     if (editId) {
-      await supabase.from('events').update(eventData).eq('id', editId);
+      result = await supabase.from('events').update(eventData).eq('id', editId);
     } else {
-      await supabase.from('events').insert([eventData]);
+      result = await supabase.from('events').insert([eventData]);
     }
+
+    // --- ÚJ RÉSZ: Azonnali értesítés küldése ---
+    // Ha sikeres volt a mentés ÉS (fontos VAGY ügyelet)
+    if (!result.error && (priority === 'fontos' || isDutyEvent)) {
+      try {
+        const who = isDutyEvent ? '🛡️ ÚJ ÜGYELET' : (eventData.member_names.join(', ') || 'Család');
+        const msgTitle = isDutyEvent ? 'Új Ügyelet Bejegyzés' : 'ÚJ FONTOS ESEMÉNY';
+        
+        // API hívása (nem várjuk meg a választ, fusson a háttérben)
+        fetch('/api/push/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: msgTitle,
+            message: `${who}: ${finalTitle} - ${selectedDate} ${finalTime}`,
+            url: '/19811221'
+          })
+        });
+      } catch (err) {
+        console.error('Nem sikerült az azonnali értesítés:', err);
+      }
+    }
+    // ---------------------------------------------
+
     setTitle(''); setEditId(null); setRecurrence('none'); setPriority('normál'); setShowAddForm(false); 
     setShowList(true);
     fetchEvents();
