@@ -7,12 +7,40 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, X, Trash2, ChevronLeft, ChevronRight, Calendar as CalendarIcon, RefreshCw, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import PushManager from './19811221/PushManager';
 
-// Kiegészítettem a PATH tulajdonsággal a navigációhoz
+// Kiegészítve a userId mezőkkel a célzott értesítésekhez
 const MEMBERS = [
-  { name: 'Andrea', email: 'demya1981@gmail.com', color: 'bg-pink-500 shadow-pink-500/50', initial: 'A', path: 'andrea' },
-  { name: 'Zsolt', email: 'stuller.zsolt@gmail.com', color: 'bg-blue-500 shadow-blue-500/50', initial: 'ZS', path: 'zsolt' },
-  { name: 'Adél', email: 'stuller.adel@gmail.com', color: 'bg-purple-500 shadow-purple-500/50', initial: 'A', path: 'adel' },
-  { name: 'Zsombor', email: 'stuller.zsombor@gmail.com', color: 'bg-orange-500 shadow-orange-500/50', initial: 'ZS', path: 'zsombor' }
+  { 
+    name: 'Andrea', 
+    email: 'demya1981@gmail.com', 
+    color: 'bg-pink-500 shadow-pink-500/50', 
+    initial: 'A', 
+    path: 'andrea', 
+    userId: 'fd66cfc9-81e9-43fb-9998-14e3f5552c7d' 
+  },
+  { 
+    name: 'Zsolt', 
+    email: 'stuller.zsolt@gmail.com', 
+    color: 'bg-blue-500 shadow-blue-500/50', 
+    initial: 'ZS', 
+    path: 'zsolt', 
+    userId: '002ebc2c-1e6a-42d2-8d93-ecaab7678a64' 
+  },
+  { 
+    name: 'Adél', 
+    email: 'stuller.adel@gmail.com', 
+    color: 'bg-purple-500 shadow-purple-500/50', 
+    initial: 'A', 
+    path: 'adel', 
+    userId: '6a2a9b24-09d2-4d03-a2f3-15cfec060d09' 
+  },
+  { 
+    name: 'Zsombor', 
+    email: 'stuller.zsombor@gmail.com', 
+    color: 'bg-orange-500 shadow-orange-500/50', 
+    initial: 'ZS', 
+    path: 'zsombor', 
+    userId: '3f0d1cbf-c353-4df3-bec2-b9130c2112b0' 
+  }
 ];
 
 export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
@@ -81,21 +109,28 @@ export default function FamilyCalendar({ currentUser }: { currentUser: any }) {
       result = await supabase.from('events').insert([eventData]);
     }
 
-    // --- ÚJ RÉSZ: Azonnali értesítés küldése ---
-    // Ha sikeres volt a mentés ÉS (fontos VAGY ügyelet)
+    // --- CÉLZOTT ÉRTESÍTÉS KÜLDÉSE ---
+    // Csak akkor, ha sikeres volt a mentés ÉS (fontos VAGY ügyelet)
     if (!result.error && (priority === 'fontos' || isDutyEvent)) {
       try {
         const who = isDutyEvent ? '🛡️ ÚJ ÜGYELET' : (eventData.member_names.join(', ') || 'Család');
         const msgTitle = isDutyEvent ? 'Új Ügyelet Bejegyzés' : 'ÚJ FONTOS ESEMÉNY';
         
-        // API hívása (nem várjuk meg a választ, fusson a háttérben)
+        // Kiszűrjük, hogy kinek kell küldeni (csak azoknak, akik benne vannak az eseményben)
+        // Ügyeletnél ez csak 'Zsolt', egyébként a selectedMembers
+        const targetUserIds = MEMBERS
+            .filter(m => eventData.member_names.includes(m.name) && m.userId)
+            .map(m => m.userId);
+
+        // API hívása a szűrt ID-kkal
         fetch('/api/push/send', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             title: msgTitle,
             message: `${who}: ${finalTitle} - ${selectedDate} ${finalTime}`,
-            url: '/19811221'
+            url: '/19811221',
+            userIds: targetUserIds // <--- Itt mondjuk meg a szervernek, kinek küldje
           })
         });
       } catch (err) {
