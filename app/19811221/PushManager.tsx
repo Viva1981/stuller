@@ -18,7 +18,12 @@ export default function PushManager({ userId }: { userId: string }) {
     try {
       const registration = await navigator.serviceWorker.ready
       const subscription = await registration.pushManager.getSubscription()
-      setIsSubscribed(!!subscription)
+      
+      if (subscription) {
+        setIsSubscribed(true)
+        // Opcionális: Ha van feliratkozás a böngészőben, ellenőrizzük, 
+        // hogy a DB-ben is megvan-e, ha nincs, pótoljuk (de ezt most nem bonyolítjuk)
+      }
     } catch (e) {
       console.error('Hiba az állapot ellenőrzésekor', e)
     }
@@ -36,16 +41,30 @@ export default function PushManager({ userId }: { userId: string }) {
         applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
       })
 
-      // Egyszerű upsert: az SQL UNIQUE constraint fogja kezelni az ütközést
-      const { error } = await supabase.from('push_subscriptions').upsert({
-        user_id: userId,
-        subscription_json: subscription.toJSON()
-      })
+      const subJson = subscription.toJSON();
 
-      if (error) throw error
+      // ELLENŐRZÉS: Megnézzük, hogy EZ a konkrét eszköz (endpoint alapján) bent van-e már
+      // Így elkerüljük a duplikációt ugyanazon a telefonon
+      const { data: existing } = await supabase
+        .from('push_subscriptions')
+        .select('id')
+        .eq('user_id', userId) // Csak a sajátjaink között keressünk (biztonság kedvéért)
+        .contains('subscription_json', { endpoint: subJson.endpoint }) 
+        .maybeSingle();
+
+      if (!existing) {
+        // Ha még nincs bent, akkor beszúrjuk (INSERT, nem UPSERT)
+        const { error } = await supabase.from('push_subscriptions').insert({
+          user_id: userId,
+          subscription_json: subJson
+        })
+        if (error) throw error
+      } else {
+        console.log('Ez az eszköz már regisztrálva van.');
+      }
 
       setIsSubscribed(true)
-      alert('Értesítések bekapcsolva! ✅')
+      alert('Értesítések bekapcsolva ezen az eszközön is! ✅')
     } catch (error: any) {
       console.error('Push hiba részletesen:', error)
       alert('Hiba történt: ' + (error.message || 'Próbáld meg később!'))
