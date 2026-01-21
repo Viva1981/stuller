@@ -8,7 +8,7 @@ import {
 } from 'recharts';
 import { format, subMonths, subYears, isAfter, parseISO } from 'date-fns';
 import { hu } from 'date-fns/locale';
-import { Scale, Plus, TrendingDown, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react';
+import { Scale, Plus, ChevronDown, ChevronUp } from 'lucide-react';
 
 const RANGES = [
   { label: '1H', value: '1M' },
@@ -24,7 +24,7 @@ export default function WeightTracker({ owner }: { owner: string }) {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [range, setRange] = useState('3M');
   const [loading, setLoading] = useState(true);
-  const [isOpen, setIsOpen] = useState(false); // Lenyitás állapota
+  const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
     fetchWeights();
@@ -54,7 +54,6 @@ export default function WeightTracker({ owner }: { owner: string }) {
     fetchWeights();
   };
 
-  // Adatok szűrése
   const filteredData = useMemo(() => {
     if (range === 'ALL') return logs;
     const now = new Date();
@@ -66,24 +65,17 @@ export default function WeightTracker({ owner }: { owner: string }) {
     return logs.filter(log => isAfter(parseISO(log.date), cutOffDate));
   }, [logs, range]);
 
-  // Statisztika (Fejléchez)
-  const stats = useMemo(() => {
+  // Statisztika (Csak az utolsó érték, nyilak nélkül)
+  const latestWeight = useMemo(() => {
     if (logs.length === 0) return null;
-    const latest = logs[logs.length - 1].weight;
-    
-    let diff = 0;
-    if (logs.length >= 2) {
-        const prev = logs[logs.length - 2].weight;
-        diff = latest - prev;
-    }
-    return { latest, diff };
+    return logs[logs.length - 1].weight;
   }, [logs]);
 
   if (loading) return null;
 
   return (
     <div className="space-y-2">
-        {/* FEJLÉC (KATTINTHATÓ) */}
+        {/* FEJLÉC */}
         <div 
             onClick={() => setIsOpen(!isOpen)}
             className="flex items-center justify-between bg-[#0a0c10] p-4 rounded-2xl border border-white/5 cursor-pointer hover:bg-white/5 transition-colors group"
@@ -97,20 +89,16 @@ export default function WeightTracker({ owner }: { owner: string }) {
                 </h2>
             </div>
 
-            {/* JOBB OLDAL: MINI STATISZTIKA (Hogy csukva is lássuk a lényeget) */}
-            {stats && (
+            {/* JOBB OLDAL: Csak a súly, semmi más */}
+            {latestWeight ? (
                 <div className="flex items-center gap-3">
-                    <span className="text-white font-bold text-sm bg-white/5 px-2 py-1 rounded-lg border border-white/5">
-                        {stats.latest} kg
+                    <span className="text-white font-bold text-sm bg-white/5 px-3 py-1.5 rounded-xl border border-white/5">
+                        {latestWeight} kg
                     </span>
-                    {stats.diff !== 0 && (
-                        <span className={`flex items-center text-xs font-bold ${stats.diff <= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                            {stats.diff > 0 ? <TrendingUp size={14}/> : <TrendingDown size={14}/>}
-                        </span>
-                    )}
                 </div>
+            ) : (
+                <Scale size={20} className="text-white/30" />
             )}
-            {!stats && <Scale size={20} className="text-white/30" />}
         </div>
 
         {/* LENYÍLÓ TARTALOM */}
@@ -171,10 +159,8 @@ export default function WeightTracker({ owner }: { owner: string }) {
                             )}
                         </div>
 
-                        {/* ALSÓ VEZÉRLŐK */}
+                        {/* VEZÉRLŐK */}
                         <div className="flex flex-col gap-4">
-                            
-                            {/* Időtáv választó */}
                             <div className="flex justify-center gap-1.5">
                                 {RANGES.map((r) => (
                                 <button
@@ -191,7 +177,6 @@ export default function WeightTracker({ owner }: { owner: string }) {
                                 ))}
                             </div>
 
-                            {/* Új bejegyzés */}
                             <div className="flex gap-2 p-1.5 bg-white/5 rounded-2xl border border-white/5">
                                 <input 
                                 type="number" 
