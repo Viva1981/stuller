@@ -2,23 +2,32 @@
 
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
+import { motion } from 'framer-motion';
 import SchoolTimetable from '../components/SchoolTimetable';
+import WeightTracker from '../components/WeightTracker';
 
 export default function AdelPage() {
   return (
-    <main className="min-h-screen bg-[#050608] text-white p-4 font-sans">
-      <div className="max-w-6xl mx-auto space-y-6">
+    <main className="min-h-screen bg-[#050608] text-white p-4 font-sans pb-20">
+      <div className="max-w-2xl mx-auto space-y-8">
         
-        {/* Vissza gomb */}
         <Link href="/19811221" className="inline-flex items-center gap-2 text-white/50 hover:text-white transition-colors">
           <ArrowLeft size={20} />
-          <span className="text-sm font-bold uppercase tracking-widest">Vissza a központba</span>
+          <span className="text-sm font-bold uppercase tracking-widest">Vissza</span>
         </Link>
-
-        {/* Órarend Komponens */}
-        <SchoolTimetable owner="Adél" />
         
-        {/* Itt lehet majd később más modul (pl. Jegyek, Feladatok) */}
+        <h1 className="text-3xl font-black italic uppercase text-purple-500">Adél</h1>
+
+        {/* Órarend */}
+        <motion.div initial={{opacity:0, y:20}} animate={{opacity:1, y:0}}>
+            <SchoolTimetable owner="Adél" />
+        </motion.div>
+
+        {/* Súlynapló */}
+        <motion.div initial={{opacity:0, y:20}} animate={{opacity:1, y:0}} transition={{delay: 0.1}}>
+            <WeightTracker owner="Adél" />
+        </motion.div>
+
       </div>
     </main>
   );
