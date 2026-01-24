@@ -6,6 +6,7 @@ import { supabase } from '@/app/supabase';
 import { Edit2, Save, X, ChevronDown, ChevronUp, Calendar as CalendarIcon, Clock, AlertCircle } from 'lucide-react';
 
 const BELL_SCHEDULE = [
+  { id: 0, start: '07:10', end: '07:55' },
   { id: 1, start: '08:00', end: '08:45' },
   { id: 2, start: '08:55', end: '09:40' },
   { id: 3, start: '09:55', end: '10:40' },
