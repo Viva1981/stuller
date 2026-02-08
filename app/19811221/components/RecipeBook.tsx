@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/app/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Utensils, ChevronDown, ChevronUp, Plus, X, Save, Trash2, ChefHat, ScrollText 
+  Utensils, ChevronDown, ChevronUp, Plus, X, Save, Trash2, ChefHat, ScrollText, Edit2 
 } from 'lucide-react';
 
 interface Ingredient {
@@ -26,7 +26,7 @@ export default function RecipeBook({ owner }: { owner: string }) {
   const [isOpen, setIsOpen] = useState(false); // Fő accordion
   
   // Állapotok a szerkesztéshez/nézethez
-  const [viewMode, setViewMode] = useState<'list' | 'create' | 'details'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'form' | 'details'>('list');
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
 
   // Form állapot
@@ -59,12 +59,17 @@ export default function RecipeBook({ owner }: { owner: string }) {
       ingredients: formIngredients
     };
 
-    if (selectedRecipe && viewMode === 'create') { 
-        // Ez valójában update, ha van ID, de most egyszerűsítsük: create mód = új, details-ben nincs edit gomb még
-        // De a logikát bővíthetjük. Most csak ÚJ mentése vagy meglévő törlése van.
-        await supabase.from('recipes').insert(recipeData);
+    if (selectedRecipe) {
+        // UPDATE (Meglévő frissítése)
+        await supabase
+            .from('recipes')
+            .update(recipeData)
+            .eq('id', selectedRecipe.id);
     } else {
-        await supabase.from('recipes').insert(recipeData);
+        // INSERT (Új létrehozása)
+        await supabase
+            .from('recipes')
+            .insert(recipeData);
     }
 
     resetForm();
@@ -74,8 +79,7 @@ export default function RecipeBook({ owner }: { owner: string }) {
   const handleDelete = async (id: string) => {
     if(!confirm('Biztosan törlöd ezt a receptet?')) return;
     await supabase.from('recipes').delete().eq('id', id);
-    setSelectedRecipe(null);
-    setViewMode('list');
+    resetForm(); // Vissza a listához
     fetchRecipes();
   };
 
@@ -87,11 +91,23 @@ export default function RecipeBook({ owner }: { owner: string }) {
     setSelectedRecipe(null);
   };
 
+  // Új recept indítása
   const openCreate = () => {
+    setSelectedRecipe(null); // Nincs kiválasztva semmi, tehát új lesz
     setFormTitle('');
     setFormDesc('');
     setFormIngredients([{ amount: '', name: '' }]);
-    setViewMode('create');
+    setViewMode('form');
+  };
+
+  // Meglévő recept szerkesztésének indítása
+  const openEdit = (recipe: Recipe) => {
+    setSelectedRecipe(recipe); // Beállítjuk, hogy ezt szerkesztjük
+    setFormTitle(recipe.title);
+    setFormDesc(recipe.description);
+    // Deep copy, hogy ne a referenciát módosítsuk azonnal
+    setFormIngredients(recipe.ingredients ? [...recipe.ingredients] : [{ amount: '', name: '' }]);
+    setViewMode('form');
   };
 
   const openDetails = (recipe: Recipe) => {
@@ -174,11 +190,13 @@ export default function RecipeBook({ owner }: { owner: string }) {
                 </div>
               )}
 
-              {/* NÉZET: ÚJ RECEPT */}
-              {viewMode === 'create' && (
+              {/* NÉZET: FORM (ÚJ LÉTREHOZÁSA VAGY SZERKESZTÉS) */}
+              {viewMode === 'form' && (
                 <div className="space-y-4">
                     <div className="flex justify-between items-center mb-2">
-                        <h3 className="text-emerald-500 font-black text-sm uppercase">Új finomság</h3>
+                        <h3 className="text-emerald-500 font-black text-sm uppercase">
+                            {selectedRecipe ? 'Recept szerkesztése' : 'Új finomság'}
+                        </h3>
                         <button onClick={() => setViewMode('list')}><X className="text-white/50" /></button>
                     </div>
 
@@ -217,7 +235,7 @@ export default function RecipeBook({ owner }: { owner: string }) {
                     <div className="space-y-2">
                         <label className="text-[10px] uppercase text-white/40 tracking-widest font-bold">Elkészítés</label>
                         <textarea 
-                            rows={5}
+                            rows={8}
                             value={formDesc}
                             onChange={e => setFormDesc(e.target.value)}
                             className="w-full bg-black/40 border border-white/10 p-3 rounded-xl text-white text-sm focus:border-emerald-500 outline-none"
@@ -229,7 +247,7 @@ export default function RecipeBook({ owner }: { owner: string }) {
                         onClick={handleSave}
                         className="w-full py-4 bg-emerald-500 rounded-xl text-black font-black uppercase tracking-widest hover:bg-emerald-400"
                     >
-                        Mentés
+                        {selectedRecipe ? 'Módosítások mentése' : 'Mentés'}
                     </button>
                 </div>
               )}
@@ -237,9 +255,24 @@ export default function RecipeBook({ owner }: { owner: string }) {
               {/* NÉZET: RÉSZLETEK */}
               {viewMode === 'details' && selectedRecipe && (
                 <div className="space-y-6">
-                     <div className="flex justify-between items-start">
+                     <div className="flex justify-between items-center">
                         <button onClick={() => setViewMode('list')} className="text-xs font-bold text-white/50 uppercase tracking-widest hover:text-white">← Vissza</button>
-                        <button onClick={() => handleDelete(selectedRecipe.id)} className="text-red-500/50 hover:text-red-500"><Trash2 size={18} /></button>
+                        
+                        {/* MŰVELETI GOMBOK (SZERKESZTÉS + TÖRLÉS) */}
+                        <div className="flex gap-3">
+                            <button 
+                                onClick={() => openEdit(selectedRecipe)} 
+                                className="p-2 bg-white/5 rounded-lg text-emerald-500 hover:bg-emerald-500/20 transition-colors"
+                            >
+                                <Edit2 size={18} />
+                            </button>
+                            <button 
+                                onClick={() => handleDelete(selectedRecipe.id)} 
+                                className="p-2 bg-white/5 rounded-lg text-red-500 hover:bg-red-500/20 transition-colors"
+                            >
+                                <Trash2 size={18} />
+                            </button>
+                        </div>
                     </div>
 
                     <div>
