@@ -6,6 +6,7 @@ import { supabase } from '../supabase';
 import FamilyCalendar from '../FamilyCalendar';
 import ShoppingList from './ShoppingList';
 import SundayChef from './SundayChef';
+import RockaBilling from './RockaBilling';
 import { motion } from 'framer-motion';
 
 const WHITELIST = [
@@ -84,6 +85,15 @@ export default function FamilyDashboard() {
           transition={{ duration: 0.5, delay: 0.2 }}
         >
           <SundayChef userName={user?.displayName} />
+        </motion.section>
+
+        {/* 4. ROCKABILLING SZEKCIÓ */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+        >
+          <RockaBilling userName={user?.displayName} />
         </motion.section>
 
         <footer className="py-10 text-center">
