@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -29,6 +29,10 @@ export default function RockaBilling({ userName }: { userName: string }) {
 
   const monthLabel = useMemo(() => {
     return new Date().toLocaleDateString('hu-HU', { year: 'numeric', month: 'long' })
+  }, [])
+
+  const monthShortLabel = useMemo(() => {
+    return new Date().toLocaleDateString('hu-HU', { month: 'long' })
   }, [])
 
   const monthRange = useMemo(() => {
@@ -97,8 +101,8 @@ export default function RockaBilling({ userName }: { userName: string }) {
 
   return (
     <div className="bg-[#0a0c10]/60 border border-white/5 rounded-[2rem] overflow-hidden backdrop-blur-md transition-all">
-      <div className="flex items-center justify-between p-4 px-6">
-        <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between gap-2 p-4 px-4 sm:px-6">
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
           <button onClick={() => setIsExpanded(!isExpanded)} className="flex items-center gap-3">
             <span className="text-xs font-black tracking-[0.2em] text-white uppercase">RockaBilling</span>
             <motion.div animate={{ rotate: isExpanded ? 180 : 0 }}>
@@ -106,10 +110,16 @@ export default function RockaBilling({ userName }: { userName: string }) {
             </motion.div>
           </button>
 
-          <div className="bg-white/5 px-3 py-1 rounded-full border border-white/10">
-            <span className="text-[9px] font-black tracking-widest text-amber-500 uppercase">
+          <div className="bg-white/5 px-2.5 py-1.5 sm:px-3 sm:py-1 rounded-2xl sm:rounded-full border border-white/10 min-w-0">
+            <span className="hidden sm:inline text-[9px] font-black tracking-widest text-amber-500 uppercase">
               {monthLabel}: {monthlyTotal.toLocaleString('hu-HU')} Ft
             </span>
+            <div className="sm:hidden leading-tight">
+              <p className="text-[9px] font-black tracking-wider text-amber-500 uppercase whitespace-nowrap">{monthShortLabel}</p>
+              <p className="text-[10px] font-black tracking-wide text-amber-500 uppercase whitespace-nowrap">
+                {monthlyTotal.toLocaleString('hu-HU')} Ft
+              </p>
+            </div>
           </div>
         </div>
 
@@ -144,7 +154,7 @@ export default function RockaBilling({ userName }: { userName: string }) {
                     value={newAmount}
                     onChange={(e) => setNewAmount(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && addEntry()}
-                    placeholder="Koltes (Ft)"
+                    placeholder="Költés (Ft)"
                     className="flex-1 bg-transparent border-none px-3 py-2 text-white text-xs font-bold outline-none"
                     inputMode="decimal"
                   />
