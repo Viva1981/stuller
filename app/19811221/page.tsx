@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -23,10 +23,10 @@ export default function FamilyDashboard() {
 
   const getName = (email: string) => {
     if (email === 'stuller.zsolt@gmail.com') return 'Zsolt';
-    if (email === 'stuller.adel@gmail.com') return 'Adél';
+    if (email === 'stuller.adel@gmail.com') return 'Ad\u00e9l';
     if (email === 'stuller.zsombor@gmail.com') return 'Zsombor';
     if (email === 'demya1981@gmail.com') return 'Andrea';
-    return 'Családtag';
+    return 'CsalĂˇdtag';
   };
 
   useEffect(() => {
@@ -44,7 +44,7 @@ export default function FamilyDashboard() {
 
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js', { scope: '/' })
-        .then((reg) => console.log('SW regisztrálva:', reg.scope))
+        .then((reg) => console.log('SW regisztrĂˇlva:', reg.scope))
         .catch((err) => console.error('SW hiba:', err));
     }
   }, [router]);
@@ -59,8 +59,8 @@ export default function FamilyDashboard() {
     <main className="min-h-screen p-3 md:p-8 bg-[#050608] text-white font-sans selection:bg-emerald-500/30">
       <div className="max-w-4xl mx-auto space-y-8">
         
-        {/* 1. NAPTÁR SZEKCIÓ */}
-        {/* Ebben vannak a kicsi kerek gombok, amiket most kötöttünk be! */}
+        {/* 1. NAPTĂR SZEKCIĂ“ */}
+        {/* Ebben vannak a kicsi kerek gombok, amiket most kĂ¶tĂ¶ttĂĽnk be! */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -69,7 +69,7 @@ export default function FamilyDashboard() {
           <FamilyCalendar currentUser={user!} />
         </motion.section>
 
-        {/* 2. BEVÁSÁRLÓLISTA SZEKCIÓ */}
+        {/* 2. BEVĂSĂRLĂ“LISTA SZEKCIĂ“ */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -78,7 +78,7 @@ export default function FamilyDashboard() {
           <ShoppingList userName={user?.displayName || 'Csaladtag'} />
         </motion.section>
 
-        {/* 3. MENÜ SZEKCIÓ */}
+        {/* 3. MENĂś SZEKCIĂ“ */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -87,7 +87,7 @@ export default function FamilyDashboard() {
           <SundayChef userName={user?.displayName || 'Csaladtag'} />
         </motion.section>
 
-        {/* 4. ROCKABILLING SZEKCIÓ */}
+        {/* 4. ROCKABILLING SZEKCIĂ“ */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -98,7 +98,7 @@ export default function FamilyDashboard() {
 
         <footer className="py-10 text-center">
           <p className="text-[10px] font-black uppercase tracking-[0.5em] text-slate-800">
-            STULLER • 2026
+            STULLER â€˘ 2026
           </p>
         </footer>
 
@@ -106,3 +106,4 @@ export default function FamilyDashboard() {
     </main>
   );
 }
+

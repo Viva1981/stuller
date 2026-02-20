@@ -50,7 +50,7 @@ const MEMBERS: Member[] = [
     userId: '002ebc2c-1e6a-42d2-8d93-ecaab7678a64'
   },
   {
-    name: 'AdĂ©l',
+    name: 'Ad\u00e9l',
     email: 'stuller.adel@gmail.com',
     color: 'bg-purple-500 shadow-purple-500/50',
     initial: 'A',
@@ -66,6 +66,16 @@ const MEMBERS: Member[] = [
     userId: '3f0d1cbf-c353-4df3-bec2-b9130c2112b0'
   }
 ];
+
+const canonicalizeMemberName = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/Ă©|Ã©|é/g, 'e')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '');
+
+const memberNameEquals = (a: string, b: string) => canonicalizeMemberName(a) === canonicalizeMemberName(b);
 
 export default function FamilyCalendar({ currentUser }: { currentUser: FamilyUser }) {
   const [events, setEvents] = useState<EventItem[]>([]);
@@ -135,7 +145,9 @@ export default function FamilyCalendar({ currentUser }: { currentUser: FamilyUse
         const who = isDutyEvent ? 'UJ UGYELET' : eventData.member_names.join(', ') || 'Csalad';
         const msgTitle = isDutyEvent ? 'Uj ugyelet bejegyzes' : 'UJ FONTOS ESEMENY';
 
-        const targetUserIds = MEMBERS.filter((m) => eventData.member_names.includes(m.name) && m.userId).map((m) => m.userId);
+        const targetUserIds = MEMBERS
+          .filter((m) => eventData.member_names.some((name) => memberNameEquals(name, m.name)) && m.userId)
+          .map((m) => m.userId);
 
         fetch('/api/push/send', {
           method: 'POST',
@@ -195,7 +207,7 @@ export default function FamilyCalendar({ currentUser }: { currentUser: FamilyUse
 
     if (filterMode === 'mine') {
       filtered = filtered.filter(
-        (e) => e.member_names?.includes(currentMemberName) || (e.is_duty && currentMemberName === 'Zsolt')
+        (e) => e.member_names?.some((name) => memberNameEquals(name, currentMemberName)) || (e.is_duty && currentMemberName === 'Zsolt')
       );
     }
     return filtered;
@@ -209,7 +221,9 @@ export default function FamilyCalendar({ currentUser }: { currentUser: FamilyUse
     const hasImportant = dayEvents.some((e) => e.priority === 'fontos');
     const hasDuty = dayEvents.some((e) => e.is_duty);
     const memberEvents = dayEvents.filter((e) => !e.is_duty);
-    const activeMemberColors = MEMBERS.filter((m) => memberEvents.some((e) => e.member_names?.includes(m.name)));
+    const activeMemberColors = MEMBERS.filter((m) =>
+      memberEvents.some((e) => e.member_names?.some((name) => memberNameEquals(name, m.name)))
+    );
 
     return (
       <button
@@ -385,7 +399,10 @@ export default function FamilyCalendar({ currentUser }: { currentUser: FamilyUse
                       </h4>
                       <div className="flex gap-1.5 mt-2">
                         {e.member_names?.map((m) => (
-                          <div key={m} className={`w-3 h-3 rounded-full shadow-md ${MEMBERS.find((x) => x.name === m)?.color}`} />
+                          <div
+                            key={m}
+                            className={`w-3 h-3 rounded-full shadow-md ${MEMBERS.find((x) => memberNameEquals(x.name, m))?.color}`}
+                          />
                         ))}
                       </div>
                     </div>
@@ -426,10 +443,16 @@ export default function FamilyCalendar({ currentUser }: { currentUser: FamilyUse
                   key={m.name}
                   type="button"
                   onClick={() =>
-                    setSelectedMembers((prev) => (prev.includes(m.name) ? prev.filter((x) => x !== m.name) : [...prev, m.name]))
+                    setSelectedMembers((prev) =>
+                      prev.some((name) => memberNameEquals(name, m.name))
+                        ? prev.filter((x) => !memberNameEquals(x, m.name))
+                        : [...prev, m.name]
+                    )
                   }
                   className={`px-4 py-2 rounded-xl text-xs font-black border-2 transition-all ${
-                    selectedMembers.includes(m.name) ? 'bg-black text-white border-black' : 'bg-white text-slate-300 border-slate-100'
+                    selectedMembers.some((name) => memberNameEquals(name, m.name))
+                      ? 'bg-black text-white border-black'
+                      : 'bg-white text-slate-300 border-slate-100'
                   }`}
                 >
                   {m.name.toUpperCase()}
