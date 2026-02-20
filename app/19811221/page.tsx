@@ -18,7 +18,7 @@ const WHITELIST = [
 
 export default function FamilyDashboard() {
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<{ id: string; email: string; displayName: string } | null>(null);
   const router = useRouter();
 
   const getName = (email: string) => {
@@ -36,7 +36,7 @@ export default function FamilyDashboard() {
         await supabase.auth.signOut();
         router.push('/');
       } else {
-        setUser({ ...user, displayName: getName(user.email || '') });
+        setUser({ id: user.id, email: user.email || '', displayName: getName(user.email || '') });
         setLoading(false);
       }
     };
@@ -66,7 +66,7 @@ export default function FamilyDashboard() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <FamilyCalendar currentUser={user} />
+          <FamilyCalendar currentUser={user!} />
         </motion.section>
 
         {/* 2. BEVÁSÁRLÓLISTA SZEKCIÓ */}
@@ -75,7 +75,7 @@ export default function FamilyDashboard() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
         >
-          <ShoppingList userName={user?.displayName} />
+          <ShoppingList userName={user?.displayName || 'Csaladtag'} />
         </motion.section>
 
         {/* 3. MENÜ SZEKCIÓ */}
@@ -84,7 +84,7 @@ export default function FamilyDashboard() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
         >
-          <SundayChef userName={user?.displayName} />
+          <SundayChef userName={user?.displayName || 'Csaladtag'} />
         </motion.section>
 
         {/* 4. ROCKABILLING SZEKCIÓ */}
@@ -93,7 +93,7 @@ export default function FamilyDashboard() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.3 }}
         >
-          <RockaBilling userName={user?.displayName} />
+          <RockaBilling userName={user?.displayName || 'Csaladtag'} />
         </motion.section>
 
         <footer className="py-10 text-center">

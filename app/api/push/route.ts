@@ -1,24 +1,37 @@
-import { NextResponse } from 'next/server';
-// @ts-ignore
+﻿import { NextResponse } from 'next/server';
 import webpush from 'web-push';
 
-webpush.setVapidDetails(
-  'mailto:stuller.zsolt@gmail.com',
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!
-);
+type PushBody = {
+  subscriptions?: Array<{ subscription_json: webpush.PushSubscription }>;
+  payload?: unknown;
+};
+
+function ensureVapid(): boolean {
+  const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  const privateKey = process.env.VAPID_PRIVATE_KEY;
+
+  if (!publicKey || !privateKey) return false;
+
+  webpush.setVapidDetails('mailto:stuller.zsolt@gmail.com', publicKey, privateKey);
+  return true;
+}
 
 export async function POST(request: Request) {
   try {
-    const { subscriptions, payload } = await request.json();
-
-    if (!subscriptions || subscriptions.length === 0) {
-      return NextResponse.json({ success: true, message: 'Nincs feliratkozó' });
+    if (!ensureVapid()) {
+      return NextResponse.json({ error: 'VAPID kulcs nincs beallítva' }, { status: 500 });
     }
 
-    const notifications = subscriptions.map((sub: any) =>
-      webpush.sendNotification(sub.subscription_json, JSON.stringify(payload))
-        .catch((err: any) => console.error('Küldési hiba:', err))
+    const { subscriptions, payload } = (await request.json()) as PushBody;
+
+    if (!subscriptions || subscriptions.length === 0) {
+      return NextResponse.json({ success: true, message: 'Nincs feliratkozo' });
+    }
+
+    const notifications = subscriptions.map((sub) =>
+      webpush
+        .sendNotification(sub.subscription_json, JSON.stringify(payload))
+        .catch((err: unknown) => console.error('Kuldesi hiba:', err))
     );
 
     await Promise.all(notifications);

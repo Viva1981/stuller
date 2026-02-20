@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect } from 'react'
 import { Bell, BellOff, Loader2 } from 'lucide-react'
@@ -18,14 +18,12 @@ export default function PushManager({ userId }: { userId: string }) {
     try {
       const registration = await navigator.serviceWorker.ready
       const subscription = await registration.pushManager.getSubscription()
-      
+
       if (subscription) {
         setIsSubscribed(true)
-        // Opcionális: Ha van feliratkozás a böngészőben, ellenőrizzük, 
-        // hogy a DB-ben is megvan-e, ha nincs, pótoljuk (de ezt most nem bonyolítjuk)
       }
     } catch (e) {
-      console.error('Hiba az állapot ellenőrzésekor', e)
+      console.error('Hiba az allapot ellenorzesekor', e)
     }
   }
 
@@ -35,51 +33,49 @@ export default function PushManager({ userId }: { userId: string }) {
 
     try {
       const registration = await navigator.serviceWorker.ready
-      
+
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
       })
 
-      const subJson = subscription.toJSON();
+      const subJson = subscription.toJSON()
 
-      // ELLENŐRZÉS: Megnézzük, hogy EZ a konkrét eszköz (endpoint alapján) bent van-e már
-      // Így elkerüljük a duplikációt ugyanazon a telefonon
       const { data: existing } = await supabase
         .from('push_subscriptions')
         .select('id')
-        .eq('user_id', userId) // Csak a sajátjaink között keressünk (biztonság kedvéért)
-        .contains('subscription_json', { endpoint: subJson.endpoint }) 
-        .maybeSingle();
+        .eq('user_id', userId)
+        .contains('subscription_json', { endpoint: subJson.endpoint })
+        .maybeSingle()
 
       if (!existing) {
-        // Ha még nincs bent, akkor beszúrjuk (INSERT, nem UPSERT)
         const { error } = await supabase.from('push_subscriptions').insert({
           user_id: userId,
           subscription_json: subJson
         })
         if (error) throw error
       } else {
-        console.log('Ez az eszköz már regisztrálva van.');
+        console.log('Ez az eszkoz mar regisztralva van.')
       }
 
       setIsSubscribed(true)
-      alert('Értesítések bekapcsolva ezen az eszközön is! ✅')
-    } catch (error: any) {
-      console.error('Push hiba részletesen:', error)
-      alert('Hiba történt: ' + (error.message || 'Próbáld meg később!'))
+      alert('Ertesitesek bekapcsolva ezen az eszkozon is!')
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Probald meg kesobb!'
+      console.error('Push hiba reszletesen:', error)
+      alert('Hiba tortent: ' + message)
     } finally {
       setIsProcessing(false)
     }
   }
 
   return (
-    <button 
+    <button
       onClick={subscribe}
       disabled={isProcessing}
       className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all shadow-lg ${
-        isSubscribed 
-          ? 'bg-slate-900 text-emerald-500 border border-emerald-500/30' 
+        isSubscribed
+          ? 'bg-slate-900 text-emerald-500 border border-emerald-500/30'
           : 'bg-red-600 text-white animate-pulse'
       }`}
     >
@@ -90,7 +86,7 @@ export default function PushManager({ userId }: { userId: string }) {
       ) : (
         <BellOff size={14} />
       )}
-      {isProcessing ? 'Kapcsolódás...' : isSubscribed ? 'Értesítések aktívak' : 'Értesítések kellenek!'}
+      {isProcessing ? 'Kapcsolodas...' : isSubscribed ? 'Ertesitesek aktivak' : 'Ertesitesek kellenek!'}
     </button>
   )
 }
