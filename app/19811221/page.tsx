@@ -98,7 +98,7 @@ export default function FamilyDashboard() {
 
         <footer className="py-10 text-center">
           <p className="text-[10px] font-black uppercase tracking-[0.5em] text-slate-800">
-            STULLER â€˘ 2026
+            STULLER • 2026
           </p>
         </footer>
 
