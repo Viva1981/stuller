@@ -23,10 +23,10 @@ export default function FamilyDashboard() {
 
   const getName = (email: string) => {
     if (email === 'stuller.zsolt@gmail.com') return 'Zsolt';
-    if (email === 'stuller.adel@gmail.com') return 'Ad\u00e9l';
+    if (email === 'stuller.adel@gmail.com') return 'Adél';
     if (email === 'stuller.zsombor@gmail.com') return 'Zsombor';
     if (email === 'demya1981@gmail.com') return 'Andrea';
-    return 'CsalĂˇdtag';
+    return 'Családtag';
   };
 
   useEffect(() => {
@@ -75,7 +75,7 @@ export default function FamilyDashboard() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
         >
-          <ShoppingList userName={user?.displayName || 'Csaladtag'} />
+          <ShoppingList userName={user?.displayName || 'Családtag'} />
         </motion.section>
 
         {/* 3. MENĂś SZEKCIĂ“ */}
@@ -84,7 +84,7 @@ export default function FamilyDashboard() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
         >
-          <SundayChef userName={user?.displayName || 'Csaladtag'} />
+          <SundayChef userName={user?.displayName || 'Családtag'} />
         </motion.section>
 
         {/* 4. ROCKABILLING SZEKCIĂ“ */}
@@ -93,7 +93,7 @@ export default function FamilyDashboard() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.3 }}
         >
-          <RockaBilling userName={user?.displayName || 'Csaladtag'} />
+          <RockaBilling userName={user?.displayName || 'Családtag'} />
         </motion.section>
 
         <footer className="py-10 text-center">

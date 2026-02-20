@@ -21,7 +21,7 @@ const RANGES = [
   { label: '1H', value: '1M' },
   { label: '3H', value: '3M' },
   { label: '6H', value: '6M' },
-  { label: '1E', value: '1Y' },
+  { label: '1É', value: '1Y' },
   { label: 'ALL', value: 'ALL' }
 ];
 
@@ -88,7 +88,7 @@ export default function WeightTracker({ owner }: { owner: string }) {
           <div className={`transition-transform duration-300 ${isOpen ? 'rotate-180' : 'rotate-0'}`}>
             {isOpen ? <ChevronUp className="text-white/50" /> : <ChevronDown className="text-white/50" />}
           </div>
-          <h2 className="text-xl font-black italic tracking-wider text-white uppercase">SULYNAPLO</h2>
+          <h2 className="text-xl font-black italic tracking-wider text-white uppercase">SÚLYNAPLÓ</h2>
         </div>
 
         {latestWeight ? (
@@ -137,7 +137,7 @@ export default function WeightTracker({ owner }: { owner: string }) {
                     </AreaChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="h-full flex items-center justify-center text-white/30 text-sm italic">Meg nincs eleg adat a diagramhoz.</div>
+                  <div className="h-full flex items-center justify-center text-white/30 text-sm italic">Még nincs elég adat a diagramhoz.</div>
                 )}
               </div>
 

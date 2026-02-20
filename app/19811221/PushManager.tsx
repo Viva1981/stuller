@@ -23,7 +23,7 @@ export default function PushManager({ userId }: { userId: string }) {
         setIsSubscribed(true)
       }
     } catch (e) {
-      console.error('Hiba az allapot ellenorzesekor', e)
+      console.error('Hiba az állapot ellenőrzésekor', e)
     }
   }
 
@@ -55,15 +55,15 @@ export default function PushManager({ userId }: { userId: string }) {
         })
         if (error) throw error
       } else {
-        console.log('Ez az eszkoz mar regisztralva van.')
+        console.log('Ez az eszköz már regisztrálva van.')
       }
 
       setIsSubscribed(true)
-      alert('Ertesitesek bekapcsolva ezen az eszkozon is!')
+      alert('Értesítések bekapcsolva ezen az eszközön is!')
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Probald meg kesobb!'
-      console.error('Push hiba reszletesen:', error)
-      alert('Hiba tortent: ' + message)
+      const message = error instanceof Error ? error.message : 'Próbáld meg később!'
+      console.error('Push hiba részletesen:', error)
+      alert('Hiba történt: ' + message)
     } finally {
       setIsProcessing(false)
     }
@@ -86,7 +86,7 @@ export default function PushManager({ userId }: { userId: string }) {
       ) : (
         <BellOff size={14} />
       )}
-      {isProcessing ? 'Kapcsolodas...' : isSubscribed ? 'Ertesitesek aktivak' : 'Ertesitesek kellenek!'}
+      {isProcessing ? 'Kapcsolódás...' : isSubscribed ? 'Értesítések aktívak' : 'Értesítések kellenek!'}
     </button>
   )
 }

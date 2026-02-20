@@ -50,7 +50,7 @@ const MEMBERS: Member[] = [
     userId: '002ebc2c-1e6a-42d2-8d93-ecaab7678a64'
   },
   {
-    name: 'Ad\u00e9l',
+    name: 'Adél',
     email: 'stuller.adel@gmail.com',
     color: 'bg-purple-500 shadow-purple-500/50',
     initial: 'A',
@@ -116,7 +116,7 @@ export default function FamilyCalendar({ currentUser }: { currentUser: FamilyUse
   }, [currentMemberName, fetchEvents]);
 
   const handleAddEvent = async (customTitle?: string, isDutyEvent: boolean = false) => {
-    const finalTitle = isDutyEvent ? customTitle || 'ugyelet' : title;
+    const finalTitle = isDutyEvent ? customTitle || 'ügyelet' : title;
     if (!finalTitle && !isDutyEvent) return;
 
     let finalTime = time;
@@ -142,8 +142,8 @@ export default function FamilyCalendar({ currentUser }: { currentUser: FamilyUse
 
     if (!result.error && (priority === 'fontos' || isDutyEvent)) {
       try {
-        const who = isDutyEvent ? 'UJ UGYELET' : eventData.member_names.join(', ') || 'Csalad';
-        const msgTitle = isDutyEvent ? 'Uj ugyelet bejegyzes' : 'UJ FONTOS ESEMENY';
+        const who = isDutyEvent ? 'ÚJ ÜGYELET' : eventData.member_names.join(', ') || 'Család';
+        const msgTitle = isDutyEvent ? 'Új ügyelet bejegyzés' : 'ÚJ FONTOS ESEMÉNY';
 
         const targetUserIds = MEMBERS
           .filter((m) => eventData.member_names.some((name) => memberNameEquals(name, m.name)) && m.userId)
@@ -160,7 +160,7 @@ export default function FamilyCalendar({ currentUser }: { currentUser: FamilyUse
           })
         });
       } catch (err) {
-        console.error('Nem sikerult az azonnali ertesites:', err);
+        console.error('Nem sikerült az azonnali értesítés:', err);
       }
     }
 
@@ -292,11 +292,11 @@ export default function FamilyCalendar({ currentUser }: { currentUser: FamilyUse
           }}
           className="h-12 flex-[2] bg-emerald-500 text-white font-black text-[10px] rounded-2xl shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-all uppercase"
         >
-          {showAddForm ? <X size={16} /> : <Plus size={16} />} {showAddForm ? 'Bezaras' : 'Uj bejegyzes'}
+          {showAddForm ? <X size={16} /> : <Plus size={16} />} {showAddForm ? 'Bezárás' : 'Új bejegyzés'}
         </button>
 
         <button
-          onClick={() => handleAddEvent('ugyelet', true)}
+          onClick={() => handleAddEvent('ügyelet', true)}
           className="h-12 flex-1 bg-blue-600 text-white font-black text-[10px] rounded-2xl shadow-lg active:scale-95 transition-all uppercase"
         >
           Ugyelet
@@ -309,7 +309,7 @@ export default function FamilyCalendar({ currentUser }: { currentUser: FamilyUse
           }`}
         >
           {filterMode === 'mine' ? <EyeOff size={14} /> : <Eye size={14} />}
-          <span className="leading-none mt-1">{filterMode === 'mine' ? 'Sajat' : 'Osszes'}</span>
+          <span className="leading-none mt-1">{filterMode === 'mine' ? 'Saját' : 'Összes'}</span>
         </button>
 
         <button
@@ -393,7 +393,7 @@ export default function FamilyCalendar({ currentUser }: { currentUser: FamilyUse
                     <span className="text-[10px] font-black text-slate-400 bg-slate-800 px-2 py-1 rounded-lg tabular-nums">{e.event_time.substring(0, 5)}</span>
                     <div>
                       <h4 className="text-md font-bold text-white flex items-center gap-2 tracking-tight">
-                        {e.is_duty ? 'UGY ' : ''}
+                        {e.is_duty ? 'ÜGY ' : ''}
                         {e.title} {e.recurrence !== 'none' && <RefreshCw size={12} className="text-emerald-500" />}
                         {e.priority === 'fontos' && <AlertCircle size={14} className="text-red-500" />}
                       </h4>
@@ -476,12 +476,12 @@ export default function FamilyCalendar({ currentUser }: { currentUser: FamilyUse
               onChange={(e) => setRecurrence(e.target.value as 'none' | 'daily' | 'weekly' | 'workdays')}
               className="w-full bg-slate-100 p-4 rounded-2xl font-bold outline-none border-none text-xs uppercase tracking-widest"
             >
-              <option value="none">Nincs ismetles</option>
+              <option value="none">Nincs ismétlés</option>
               <option value="daily">Minden nap</option>
-              <option value="weekly">Minden heten</option>
+              <option value="weekly">Minden héten</option>
               <option value="workdays">Munkanapokon</option>
             </select>
-            <button className="w-full bg-black text-white p-5 rounded-2xl font-black text-sm uppercase tracking-widest active:scale-95 transition-all shadow-xl shadow-black/20">Mentes</button>
+            <button className="w-full bg-black text-white p-5 rounded-2xl font-black text-sm uppercase tracking-widest active:scale-95 transition-all shadow-xl shadow-black/20">Mentés</button>
           </motion.form>
         )}
       </AnimatePresence>

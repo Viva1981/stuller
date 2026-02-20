@@ -20,7 +20,7 @@ type Rating = {
 const MEMBERS = [
   { name: 'Andrea', color: 'bg-pink-500 shadow-pink-500/50' },
   { name: 'Zsolt', color: 'bg-blue-500 shadow-blue-500/50' },
-  { name: 'AdĂ©l', color: 'bg-purple-500 shadow-purple-500/50' },
+  { name: 'Adél', color: 'bg-purple-500 shadow-purple-500/50' },
   { name: 'Zsombor', color: 'bg-orange-500 shadow-orange-500/50' }
 ]
 
@@ -94,7 +94,7 @@ export default function SundayChef({ userName }: { userName: string }) {
       <div className="flex items-center justify-between p-4 px-6">
         <div className="flex items-center gap-4">
           <button onClick={() => setIsExpanded(!isExpanded)} className="flex items-center gap-3">
-            <span className="text-xs font-black tracking-[0.2em] text-white uppercase">Menu</span>
+            <span className="text-xs font-black tracking-[0.2em] text-white uppercase">Menü</span>
             <motion.div animate={{ rotate: isExpanded ? 180 : 0 }}>
               <ChevronDown size={16} className="text-amber-500" />
             </motion.div>
@@ -204,7 +204,7 @@ export default function SundayChef({ userName }: { userName: string }) {
                   value={newDish}
                   onChange={(e) => setNewDish(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && saveMeal()}
-                  placeholder="Etel neve..."
+                  placeholder="Étel neve..."
                   className="flex-1 bg-transparent border-none px-3 py-2 text-white text-xs font-bold outline-none"
                 />
                 <button onClick={saveMeal} className="bg-amber-500 px-4 py-2 rounded-xl text-black text-[10px] font-black uppercase">
@@ -213,7 +213,7 @@ export default function SundayChef({ userName }: { userName: string }) {
               </motion.div>
             ) : (
               meals.length === 0 && (
-                <p className="text-[10px] text-slate-600 text-center py-4 font-bold uppercase tracking-widest">Nincs rogzitett etel</p>
+                <p className="text-[10px] text-slate-600 text-center py-4 font-bold uppercase tracking-widest">Nincs rögzített étel</p>
               )
             )}
           </motion.div>

@@ -80,7 +80,7 @@ export default function ShoppingList({ userName }: { userName: string }) {
       <div className="flex items-center justify-between p-4 px-6">
         <div className="flex items-center gap-4">
           <button onClick={() => setIsExpanded(!isExpanded)} className="flex items-center gap-3">
-            <span className="text-xs font-black tracking-[0.2em] text-white uppercase">Bevasarlolista</span>
+            <span className="text-xs font-black tracking-[0.2em] text-white uppercase">Bevásárlólista</span>
             <motion.div animate={{ rotate: isExpanded ? 180 : 0 }}>
               <ChevronDown size={16} className="text-amber-500" />
             </motion.div>
@@ -88,7 +88,7 @@ export default function ShoppingList({ userName }: { userName: string }) {
 
           <div className="bg-white/5 px-3 py-1 rounded-full border border-white/10">
             <span className="text-[9px] font-black tracking-widest text-amber-500 uppercase">
-              {items.filter((i) => !i.is_completed).length} TETEL
+              {items.filter((i) => !i.is_completed).length} TÉTEL
             </span>
           </div>
         </div>
@@ -125,7 +125,7 @@ export default function ShoppingList({ userName }: { userName: string }) {
                       value={newItem}
                       onChange={(e) => setNewItem(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && addItem()}
-                      placeholder="Mit vegyunk?"
+                      placeholder="Mit vegyünk?"
                       className="flex-1 bg-transparent border-none px-3 py-2 text-white text-xs font-bold outline-none"
                     />
                     <button
@@ -170,7 +170,7 @@ export default function ShoppingList({ userName }: { userName: string }) {
                   <div className="flex flex-col">
                     <span className={`font-bold text-sm ${item.is_completed ? 'line-through' : 'text-white'}`}>{item.item}</span>
                     {item.is_special && !item.is_completed && (
-                      <span className="text-[8px] font-black text-amber-500 uppercase tracking-tighter italic">Specialis</span>
+                      <span className="text-[8px] font-black text-amber-500 uppercase tracking-tighter italic">Speciális</span>
                     )}
                   </div>
                 </div>

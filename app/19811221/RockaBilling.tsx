@@ -186,7 +186,7 @@ export default function RockaBilling({ userName }: { userName: string }) {
 
             {entries.length === 0 && !isAdding && (
               <p className="text-[10px] text-slate-600 text-center py-4 font-bold uppercase tracking-widest">
-                Nincs rogzitett koltes ebben a honapban
+                Nincs rögzített költés ebben a hónapban
               </p>
             )}
           </motion.div>

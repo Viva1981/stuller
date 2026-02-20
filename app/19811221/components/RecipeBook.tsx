@@ -71,7 +71,7 @@ export default function RecipeBook({ owner }: { owner: string }) {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Biztosan torlod ezt a receptet?')) return;
+    if (!confirm('Biztosan törlöd ezt a receptet?')) return;
     await supabase.from('recipes').delete().eq('id', id);
     resetForm();
     fetchRecipes();
@@ -153,11 +153,11 @@ export default function RecipeBook({ owner }: { owner: string }) {
                     onClick={openCreate}
                     className="w-full py-3 bg-white/5 border border-white/10 rounded-xl text-emerald-500 font-black text-xs uppercase tracking-widest hover:bg-white/10 flex items-center justify-center gap-2"
                   >
-                    <Plus size={16} /> Uj Recept
+                    <Plus size={16} /> Új Recept
                   </button>
 
                   {recipes.length === 0 ? (
-                    <p className="text-center text-white/30 text-sm italic py-4">Meg nincs feltoltve recept.</p>
+                    <p className="text-center text-white/30 text-sm italic py-4">Még nincs feltöltve recept.</p>
                   ) : (
                     <div className="grid gap-2">
                       {recipes.map((recipe) => (
@@ -179,7 +179,7 @@ export default function RecipeBook({ owner }: { owner: string }) {
                 <div className="space-y-4">
                   <div className="flex justify-between items-center mb-2">
                     <h3 className="text-emerald-500 font-black text-sm uppercase">
-                      {selectedRecipe ? 'Recept szerkesztese' : 'Uj finomsag'}
+                      {selectedRecipe ? 'Recept szerkesztése' : 'Új finomság'}
                     </h3>
                     <button onClick={() => setViewMode('list')}><X className="text-white/50" /></button>
                   </div>
@@ -193,7 +193,7 @@ export default function RecipeBook({ owner }: { owner: string }) {
                   />
 
                   <div className="space-y-2">
-                    <label className="text-[10px] uppercase text-white/40 tracking-widest font-bold">Hozzavalok</label>
+                    <label className="text-[10px] uppercase text-white/40 tracking-widest font-bold">Hozzávalók</label>
                     {formIngredients.map((ing, idx) => (
                       <div key={idx} className="flex gap-2">
                         <input
@@ -212,18 +212,18 @@ export default function RecipeBook({ owner }: { owner: string }) {
                       </div>
                     ))}
                     <button onClick={addIngredientRow} className="text-xs text-emerald-500 font-bold flex items-center gap-1 mt-2">
-                      <Plus size={14} /> Sor hozzaadasa
+                      <Plus size={14} /> Sor hozzáadása
                     </button>
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-[10px] uppercase text-white/40 tracking-widest font-bold">Elkeszites</label>
+                    <label className="text-[10px] uppercase text-white/40 tracking-widest font-bold">Elkészítés</label>
                     <textarea
                       rows={8}
                       value={formDesc}
                       onChange={(e) => setFormDesc(e.target.value)}
                       className="w-full bg-black/40 border border-white/10 p-3 rounded-xl text-white text-sm focus:border-emerald-500 outline-none"
-                      placeholder="Ird le a lepeseket..."
+                      placeholder="Írd le a lépéseket..."
                     />
                   </div>
 
@@ -231,7 +231,7 @@ export default function RecipeBook({ owner }: { owner: string }) {
                     onClick={handleSave}
                     className="w-full py-4 bg-emerald-500 rounded-xl text-black font-black uppercase tracking-widest hover:bg-emerald-400"
                   >
-                    {selectedRecipe ? 'Modositasok mentese' : 'Mentes'}
+                    {selectedRecipe ? 'Módosítások mentése' : 'Mentés'}
                   </button>
                 </div>
               )}
@@ -263,7 +263,7 @@ export default function RecipeBook({ owner }: { owner: string }) {
 
                   <div className="bg-white/5 p-4 rounded-xl border border-white/5">
                     <h4 className="flex items-center gap-2 text-xs font-black uppercase text-white/60 mb-4 tracking-widest">
-                      <ChefHat size={16} className="text-emerald-500" /> Hozzavalok
+                      <ChefHat size={16} className="text-emerald-500" /> Hozzávalók
                     </h4>
                     <ul className="space-y-2">
                       {selectedRecipe.ingredients?.map((ing, i) => (
@@ -277,7 +277,7 @@ export default function RecipeBook({ owner }: { owner: string }) {
 
                   <div className="bg-white/5 p-4 rounded-xl border border-white/5">
                     <h4 className="flex items-center gap-2 text-xs font-black uppercase text-white/60 mb-4 tracking-widest">
-                      <ScrollText size={16} className="text-blue-500" /> Elkeszites
+                      <ScrollText size={16} className="text-blue-500" /> Elkészítés
                     </h4>
                     <p className="text-sm text-white/80 leading-relaxed whitespace-pre-line">{selectedRecipe.description}</p>
                   </div>
