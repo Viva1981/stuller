@@ -140,10 +140,10 @@ export default function FamilyCalendar({ currentUser }: { currentUser: FamilyUse
       ? await supabase.from('events').update(eventData).eq('id', editId)
       : await supabase.from('events').insert([eventData]);
 
-    if (!result.error && (priority === 'fontos' || isDutyEvent)) {
+    if (!result.error && eventData.priority === 'fontos') {
       try {
-        const who = isDutyEvent ? 'ÚJ ÜGYELET' : eventData.member_names.join(', ') || 'Család';
-        const msgTitle = isDutyEvent ? 'Új ügyelet bejegyzés' : 'ÚJ FONTOS ESEMÉNY';
+        const who = eventData.member_names.join(', ') || 'Család';
+        const msgTitle = 'ÚJ FONTOS ESEMÉNY';
 
         const targetUserIds = MEMBERS
           .filter((m) => eventData.member_names.some((name) => memberNameEquals(name, m.name)) && m.userId)
