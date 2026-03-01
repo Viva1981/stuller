@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ChevronDown, Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronLeft, Plus, Trash2 } from 'lucide-react'
 import { supabase } from '../supabase'
 
 type BillingRow = {
@@ -26,21 +26,28 @@ export default function RockaBilling({ userName }: { userName: string }) {
   const [isAdding, setIsAdding] = useState(false)
   const [newAmount, setNewAmount] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const [monthOffset, setMonthOffset] = useState(0)
+
+  const targetMonthDate = useMemo(() => {
+    const d = new Date()
+    d.setDate(1)
+    d.setMonth(d.getMonth() + monthOffset)
+    return d
+  }, [monthOffset])
 
   const monthLabel = useMemo(() => {
-    return new Date().toLocaleDateString('hu-HU', { year: 'numeric', month: 'long' })
-  }, [])
+    return targetMonthDate.toLocaleDateString('hu-HU', { year: 'numeric', month: 'long' })
+  }, [targetMonthDate])
 
   const monthShortLabel = useMemo(() => {
-    return new Date().toLocaleDateString('hu-HU', { month: 'long' })
-  }, [])
+    return targetMonthDate.toLocaleDateString('hu-HU', { month: 'long' })
+  }, [targetMonthDate])
 
   const monthRange = useMemo(() => {
-    const now = new Date()
-    const start = new Date(now.getFullYear(), now.getMonth(), 1)
-    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+    const start = new Date(targetMonthDate.getFullYear(), targetMonthDate.getMonth(), 1)
+    const end = new Date(targetMonthDate.getFullYear(), targetMonthDate.getMonth() + 1, 0)
     return { start: toDateKey(start), end: toDateKey(end) }
-  }, [])
+  }, [targetMonthDate])
 
   const monthlyTotal = entries.reduce((sum, item) => sum + Number(item.amount || 0), 0)
 
@@ -110,15 +117,33 @@ export default function RockaBilling({ userName }: { userName: string }) {
             </motion.div>
           </button>
 
-          <div className="bg-white/5 px-2.5 py-1.5 sm:px-3 sm:py-1 rounded-2xl sm:rounded-full border border-white/10 min-w-0">
-            <span className="hidden sm:inline text-[9px] font-black tracking-widest text-amber-500 uppercase">
-              {monthLabel}: {monthlyTotal.toLocaleString('hu-HU')} Ft
-            </span>
-            <div className="sm:hidden leading-tight">
-              <p className="text-[9px] font-black tracking-wider text-amber-500 uppercase whitespace-nowrap">{monthShortLabel}</p>
-              <p className="text-[10px] font-black tracking-wide text-amber-500 uppercase whitespace-nowrap">
-                {monthlyTotal.toLocaleString('hu-HU')} Ft
-              </p>
+          <div className="bg-white/5 px-2 py-1.5 sm:px-3 sm:py-1 rounded-2xl sm:rounded-full border border-white/10 min-w-0">
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setMonthOffset((prev) => prev - 1)}
+                className="text-slate-500 hover:text-white transition-colors"
+                aria-label="Előző hónap"
+              >
+                <ChevronLeft size={14} />
+              </button>
+
+              <span className="hidden sm:inline text-[9px] font-black tracking-widest text-amber-500 uppercase whitespace-nowrap">
+                {monthLabel}: {monthlyTotal.toLocaleString('hu-HU')} Ft
+              </span>
+              <div className="sm:hidden leading-tight">
+                <p className="text-[9px] font-black tracking-wider text-amber-500 uppercase whitespace-nowrap">{monthShortLabel}</p>
+                <p className="text-[10px] font-black tracking-wide text-amber-500 uppercase whitespace-nowrap">
+                  {monthlyTotal.toLocaleString('hu-HU')} Ft
+                </p>
+              </div>
+
+              <button
+                onClick={() => setMonthOffset((prev) => prev + 1)}
+                className="text-slate-500 hover:text-white transition-colors"
+                aria-label="Következő hónap"
+              >
+                <ChevronLeft size={14} className="rotate-180" />
+              </button>
             </div>
           </div>
         </div>
