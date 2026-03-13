@@ -40,6 +40,7 @@ Az otthon modul fő táblái:
 
 Nyers megfigyelések ide érkeznek:
 
+- `GET /api/house/config`
 - `POST /api/house/ingest`
 
 Hitelesítés:
@@ -78,6 +79,10 @@ Az ingest route:
 - jelenléti állapotot számol
 - eseményt generál
 - szükség esetén push értesítést küld
+
+Az Android szenzor külön projektben található:
+
+- `android-house-sensor`
 
 ## Ajánlott rendszerkép
 

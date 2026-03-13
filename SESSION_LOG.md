@@ -77,3 +77,26 @@
 
 - `npm run lint` továbbra is sikeres az új változtatásokkal
 - `npm run build` továbbra is sikeres
+
+## 2026-03-13 20:45 +01:00
+
+### Android szenzor MVP
+
+- új backend végpont készült a szenzor számára:
+  - `GET /api/house/config`
+- új külön Android projekt került a repóba:
+  - `android-house-sensor`
+- az Android app első verziója tudja:
+  - URL és token mentése
+  - foreground service indítása
+  - aktív eszközlista letöltése a config végpontról
+  - `ping` alapú reachability mérést
+  - megfigyelések feltöltését a `POST /api/house/ingest` végpontra
+
+### Fontos korlát
+
+- ezen a gépen nincs Android SDK / Gradle / Java eszközlánc, ezért az Android projektet itt helyben nem tudtam lefordítani
+- a webes oldal ellenőrzése sikeres volt:
+  - `npm run lint`
+  - `npm run build`
+- a foreground service `dataSync` típusú, ezért újabb Androidokon időkorlátos lehet; ennek kezelésére került be timeout-kezelés és típus-specifikus permission

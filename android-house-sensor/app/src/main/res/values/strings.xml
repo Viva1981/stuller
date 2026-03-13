@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">House Sensor</string>
+    <string name="notification_channel_name">House Sensor figyelés</string>
+    <string name="notification_channel_description">Folyamatos otthoni jelenlét- és eszközfigyelés</string>
+</resources>
