@@ -1,36 +1,93 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Stuller családi app
 
-## Getting Started
+Next.js + Supabase alapú családi PWA.
 
-First, run the development server:
+## Fő modulok
+
+- családi naptár
+- bevásárlólista
+- menütervező
+- Rocka elszámolás
+- push értesítések
+- otthon / jelenlét modul
+
+## Fejlesztői indítás
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Szükséges környezeti változók
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```env
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=
+VAPID_PRIVATE_KEY=
+HOUSE_SENSOR_TOKEN=
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Új otthon modul
 
-## Learn More
+Az otthon modul fő táblái:
 
-To learn more about Next.js, take a look at the following resources:
+- `house_devices`
+- `house_observations`
+- `house_presence`
+- `house_events`
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Nyers megfigyelések ide érkeznek:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `POST /api/house/ingest`
 
-## Deploy on Vercel
+Hitelesítés:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- `Authorization: Bearer <HOUSE_SENSOR_TOKEN>`
+  vagy
+- `x-sensor-token: <HOUSE_SENSOR_TOKEN>`
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Minta kérés:
+
+```json
+{
+  "sensorLabel": "redmi-note-9-pro",
+  "observations": [
+    {
+      "slug": "apa-telefonja",
+      "reachabilityState": "online",
+      "latencyMs": 12,
+      "ipAddress": "192.168.0.55",
+      "macAddress": "AA:BB:CC:DD:EE:FF",
+      "confidence": 95
+    },
+    {
+      "slug": "adel-lampaja",
+      "powerState": "on",
+      "confidence": 100
+    }
+  ]
+}
+```
+
+Az ingest route:
+
+- eltárolja a nyers megfigyelést
+- frissíti az eszköz állapotát
+- jelenléti állapotot számol
+- eseményt generál
+- szükség esetén push értesítést küld
+
+## Ajánlott rendszerkép
+
+1. a családi dashboard `Otthon` paneljén felveszed az eszközöket
+2. az otthon hagyott Android szenzor POST-ol az ingest endpointnak
+3. a PWA realtime-ban mutatja az állapotot és az eseményeket
+
+## Ellenőrzés
+
+```bash
+npm run lint
+npm run build
+```
