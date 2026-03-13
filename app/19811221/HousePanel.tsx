@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Activity, Cpu, Home, Lightbulb, Loader2, Plus, Router, Save, Smartphone, Tv, Wifi, WifiOff } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Activity, ChevronDown, Cpu, Home, Lightbulb, Loader2, Plus, Router, Save, Smartphone, Tv, Wifi, WifiOff } from 'lucide-react';
 
 import { supabase } from '@/app/supabase';
 import {
@@ -62,6 +63,7 @@ export default function HousePanel() {
   const [events, setEvents] = useState<HouseEventRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [form, setForm] = useState<DeviceFormState>(EMPTY_FORM);
   const [error, setError] = useState<string | null>(null);
 
@@ -214,25 +216,37 @@ export default function HousePanel() {
   }
 
   return (
-    <section className="bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.18),_transparent_35%),linear-gradient(180deg,_rgba(15,23,42,0.9),_rgba(2,6,23,0.95))] border border-emerald-500/10 rounded-[2.5rem] p-5 md:p-6 shadow-2xl shadow-emerald-950/30">
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-emerald-400/80">Otthon</p>
-          <h2 className="mt-2 text-3xl font-black tracking-tight text-white">Jelenlét és otthoni eszközök</h2>
-          <p className="mt-2 max-w-2xl text-sm text-slate-300">
-            Ez a panel mutatja, ki van itthon, melyik eszköz milyen állapotban van, és ide érkeznek majd a lakásban
-            futó Android szenzor megfigyelései.
-          </p>
+    <section className="overflow-hidden rounded-[2rem] border border-white/5 bg-[#0a0c10]/60 backdrop-blur-md transition-all">
+      <div className="flex items-center justify-between gap-3 p-4 px-4 sm:px-6">
+        <div className="flex items-center gap-4 min-w-0 flex-1">
+          <button onClick={() => setIsExpanded(!isExpanded)} className="flex items-center gap-3">
+            <span className="text-xs font-black uppercase tracking-[0.2em] text-white">Otthon</span>
+            <motion.div animate={{ rotate: isExpanded ? 180 : 0 }}>
+              <ChevronDown size={16} className="text-emerald-400" />
+            </motion.div>
+          </button>
+
+          <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+            <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400">
+              {peopleCards.filter((item) => item.presence?.current_state === 'home').length} OTTHON
+            </span>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-xs text-slate-300">
-            <div className="font-black uppercase tracking-widest text-white">Szenzor végpont</div>
-            <div className="mt-1 font-mono text-[11px] text-emerald-300">POST /api/house/ingest</div>
-          </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              setIsExpanded(true);
+              resetForm();
+            }}
+            className="rounded-xl bg-emerald-500 p-2 text-black transition-all active:scale-90"
+            aria-label="Új otthoni eszköz"
+          >
+            <Plus size={16} />
+          </button>
           <button
             onClick={() => void fetchHouseData()}
-            className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-3 text-xs font-black uppercase tracking-widest text-black transition-transform active:scale-95"
+            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white transition-transform active:scale-95"
           >
             <Activity size={14} />
             Frissítés
@@ -240,19 +254,44 @@ export default function HousePanel() {
         </div>
       </div>
 
-      {error && (
-        <div className="mt-4 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-100">
-          {error}
-        </div>
-      )}
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="px-4 pb-6 sm:px-6"
+          >
+            <div className="rounded-[2rem] border border-emerald-500/10 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.18),_transparent_35%),linear-gradient(180deg,_rgba(15,23,42,0.9),_rgba(2,6,23,0.95))] p-5 shadow-2xl shadow-emerald-950/30 md:p-6">
+              <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.4em] text-emerald-400/80">Otthon</p>
+                  <h2 className="mt-2 text-3xl font-black tracking-tight text-white">Jelenlét és otthoni eszközök</h2>
+                  <p className="mt-2 max-w-2xl text-sm text-slate-300">
+                    Ez a panel mutatja, ki van itthon, melyik eszköz milyen állapotban van, és ide érkeznek majd a lakásban
+                    futó Android szenzor megfigyelései.
+                  </p>
+                </div>
 
-      {loading ? (
-        <div className="mt-8 flex items-center justify-center rounded-[2rem] border border-white/5 bg-black/10 py-12 text-slate-300">
-          <Loader2 className="mr-3 animate-spin" size={18} />
-          Betöltés...
-        </div>
-      ) : (
-        <div className="mt-6 space-y-6">
+                <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-xs text-slate-300">
+                  <div className="font-black uppercase tracking-widest text-white">Szenzor végpont</div>
+                  <div className="mt-1 font-mono text-[11px] text-emerald-300">POST /api/house/ingest</div>
+                </div>
+              </div>
+
+              {error && (
+                <div className="mt-4 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+                  {error}
+                </div>
+              )}
+
+              {loading ? (
+                <div className="mt-8 flex items-center justify-center rounded-[2rem] border border-white/5 bg-black/10 py-12 text-slate-300">
+                  <Loader2 className="mr-3 animate-spin" size={18} />
+                  Betöltés...
+                </div>
+              ) : (
+                <div className="mt-6 space-y-6">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {peopleCards.length === 0 ? (
               <div className="rounded-[2rem] border border-dashed border-white/10 bg-black/10 p-6 text-sm text-slate-400 md:col-span-2 xl:col-span-4">
@@ -586,8 +625,12 @@ export default function HousePanel() {
               </div>
             </div>
           </div>
-        </div>
-      )}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
   );
 }

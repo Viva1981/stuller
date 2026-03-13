@@ -65,3 +65,15 @@
 1. Android szenzor kliens első verziója a Redmi telefonra
 2. régi Supabase RLS policy-k auditált szigorítása
 3. otthon modul értesítési beállítások családtagonként
+
+## 2026-03-13 20:30 +01:00
+
+### Otthon panel UI finomítás
+
+- az `Otthon` szekció átkerült a `RockaBilling` blokk alá
+- az `Otthon` szekció most már lenyíló panelként működik, a meglévő dashboard blokkokkal egységes mintában
+
+### Ellenőrzés
+
+- `npm run lint` továbbra is sikeres az új változtatásokkal
+- `npm run build` továbbra is sikeres
