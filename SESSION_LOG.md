@@ -188,3 +188,38 @@
 - `npm run lint` lefutott
   - továbbra is csak a két régi `SchoolTimetable.tsx` warning maradt
 - `npm run build` sikeres
+
+## 2026-03-15 21:15 +01:00
+
+### Kalóriamérleg bővítés: profil alapú számolás és sablonok
+
+- a kalóriamérleg most már a személyes profilból számol napi alap kalóriaigényt
+- a profilban menthető:
+  - magasság
+  - életkor
+  - nem
+  - aktivitási szint
+  - tartalék kézi alap kcal érték
+- a számolás a legutóbbi `weight_logs` bejegyzést is figyelembe veszi
+- ha nincs elég profil- vagy súlyadat, akkor a tartalék alap kcal értéket használja
+
+### Gemini étkezés és mozgás becslés
+
+- a Gemini becslő most már két módot támogat:
+  - étkezés
+  - extra mozgás
+- a mozgásbecslés a profiladatokat és a legutóbbi testsúlyt is megkapja kontextusként
+- az AI továbbra sem ment automatikusan, csak előtölti a mezőket
+
+### Újrahasználható sablonok
+
+- bekerült a korábbi étkezések és mozgások újrahasználhatósága
+- a mentett nap alapján automatikusan menthetők újrahasználható sablonok
+- a sablonok owner szerint különülnek el
+- egy korábbi étkezés vagy mozgás egy gombnyomással visszatölthető, így nem kell újra AI-t hívni vagy kézzel újraírni
+
+### Ellenőrzés
+
+- `npm run lint` lefutott
+  - továbbra is csak a két régi `SchoolTimetable.tsx` warning maradt
+- `npm run build` sikeres

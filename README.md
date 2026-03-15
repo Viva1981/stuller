@@ -1,4 +1,4 @@
-﻿# Stuller családi app
+# Stuller családi app
 
 Next.js + Supabase alapú családi PWA.
 

@@ -2,9 +2,20 @@
 
 export const runtime = 'nodejs';
 
+type EstimateMode = 'meal' | 'exercise';
+
 type EstimateRequest = {
   owner?: string;
   text?: string;
+  mode?: EstimateMode;
+  profile?: {
+    heightCm?: number | null;
+    ageYears?: number | null;
+    sex?: 'male' | 'female' | null;
+    activityLevel?: string | null;
+    latestWeightKg?: number | null;
+    effectiveMaintenance?: number | null;
+  };
 };
 
 type GeminiEstimate = {
@@ -32,45 +43,44 @@ function normalizeEstimate(input: unknown): GeminiEstimate {
     : [];
 
   return {
-    totalCalories: Number(value.totalCalories ?? 0),
+    totalCalories: Math.max(0, Math.round(Number(value.totalCalories ?? 0))),
     items,
     assumptions: String(value.assumptions ?? ''),
-    confidence: Math.max(0, Math.min(100, Number(value.confidence ?? 50))),
+    confidence: Math.max(0, Math.min(100, Math.round(Number(value.confidence ?? 50)))),
   };
 }
 
-export async function POST(request: Request) {
-  try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: 'A GEMINI_API_KEY környezeti változó nincs beállítva.' },
-        { status: 500 }
-      );
-    }
+function buildPrompt(body: EstimateRequest) {
+  const mode = body.mode ?? 'meal';
+  const owner = body.owner?.trim() || 'Családtag';
+  const text = body.text?.trim() || '';
+  const profile = body.profile ?? {};
 
-    const body = (await request.json()) as EstimateRequest;
-    const text = body.text?.trim();
-    const owner = body.owner?.trim() || 'Családtag';
+  const profileContext = `
+Felhasználó: ${owner}
+Nem: ${profile.sex ?? 'ismeretlen'}
+Életkor: ${profile.ageYears ?? 'ismeretlen'}
+Magasság: ${profile.heightCm ?? 'ismeretlen'} cm
+Legutóbbi súly: ${profile.latestWeightKg ?? 'ismeretlen'} kg
+Életmód: ${profile.activityLevel ?? 'ismeretlen'}
+Jelenlegi napi alap becslés: ${profile.effectiveMaintenance ?? 'ismeretlen'} kcal
+`.trim();
 
-    if (!text) {
-      return NextResponse.json({ error: 'Hiányzik az étkezés leírása.' }, { status: 400 });
-    }
+  if (mode === 'exercise') {
+    return `
+Te egy magyar nyelvű mozgás-kalóriabecslő asszisztens vagy.
+A feladatod: a felhasználó mozgásleírása alapján becsüld meg a plusz, edzésből vagy aktivitásból származó elégetett kalóriát.
+Fontos: ez extra mozgás, nem a teljes napi alapanyagcsere.
 
-    const prompt = `
-Te egy kalóriabecslő asszisztens vagy magyar nyelven.
-A feladatod: a felhasználó rövid étkezésleírásából készíts óvatos, reális becslést.
+Szabályok:
+- Kizárólag JSON-t adj vissza.
+- Légy konzervatív, ne adj túlzó becslést.
+- Vedd figyelembe a testsúlyt, nemet, életkort és aktivitási szintet, ha van adat.
+- A totalCalories egész szám legyen.
+- Az items tömbben bontsd szét a tevékenységet logikus elemekre, ha kell.
+- A confidence 0 és 100 közötti egész szám legyen.
 
-Fontos szabályok:
-- Ne állíts biztos értéket, ha csak becslés lehetséges.
-- Magyarul gondolkodj, de kizárólag JSON-t adj vissza.
-- A totalCalories legyen egész szám.
-- Az items tömbben minden tételhez add meg a nevet, becsült kalóriát és rövid indokot.
-- Az assumptions mezőbe írd le röviden, milyen feltételezésekkel számoltál.
-- A confidence legyen 0 és 100 közötti egész szám.
-- Ha valami nagyon bizonytalan, inkább konzervatív becslést adj.
-
-Visszaadandó JSON szerkezet:
+Visszaadandó JSON:
 {
   "totalCalories": 0,
   "items": [
@@ -84,9 +94,55 @@ Visszaadandó JSON szerkezet:
   "confidence": 0
 }
 
-Felhasználó: ${owner}
+${profileContext}
+Mozgás leírása: ${text}
+`.trim();
+  }
+
+  return `
+Te egy magyar nyelvű kalóriabecslő asszisztens vagy.
+A feladatod: a felhasználó rövid étkezésleírásából készíts óvatos, reális kalóriabecslést.
+
+Szabályok:
+- Kizárólag JSON-t adj vissza.
+- Ne állíts biztos értéket, ha csak becslés lehetséges.
+- Légy óvatos, konzervatív becslést adj.
+- A totalCalories egész szám legyen.
+- Az items tömbben minden tételhez add meg a nevet, becsült kalóriát és rövid indokot.
+- A confidence 0 és 100 közötti egész szám legyen.
+
+Visszaadandó JSON:
+{
+  "totalCalories": 0,
+  "items": [
+    {
+      "name": "",
+      "estimatedCalories": 0,
+      "reason": ""
+    }
+  ],
+  "assumptions": "",
+  "confidence": 0
+}
+
+${profileContext}
 Étkezés leírása: ${text}
 `.trim();
+}
+
+export async function POST(request: Request) {
+  try {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json({ error: 'A GEMINI_API_KEY környezeti változó nincs beállítva.' }, { status: 500 });
+    }
+
+    const body = (await request.json()) as EstimateRequest;
+    if (!body.text?.trim()) {
+      return NextResponse.json({ error: 'Hiányzik a leírás.' }, { status: 400 });
+    }
+
+    const prompt = buildPrompt(body);
 
     const response = await fetch(
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
