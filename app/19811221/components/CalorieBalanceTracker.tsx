@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/app/supabase';
@@ -429,8 +429,11 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
   };
 
   const handleSaveLog = async () => {
-    if (!effectiveMaintenance || !caloriesIn || !date) {
-      setError('A mentéshez kell számolt vagy tartalék alap kalória, bevitt kalória és dátum.');
+    const normalizedCaloriesIn = parseInt(caloriesIn || '0', 10);
+    const normalizedCaloriesOutExtra = parseInt(caloriesOutExtra || '0', 10);
+
+    if (!effectiveMaintenance || !date || (normalizedCaloriesIn <= 0 && normalizedCaloriesOutExtra <= 0)) {
+      setError('A mentéshez kell számolt vagy tartalék alap kalória, dátum, és legalább étkezés vagy mozgás adat.');
       return;
     }
 
@@ -441,19 +444,19 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
         owner,
         date,
         calorie_target: effectiveMaintenance,
-        calories_in: parseInt(caloriesIn, 10),
-        calories_out_extra: parseInt(caloriesOutExtra || '0', 10),
+        calories_in: normalizedCaloriesIn,
+        calories_out_extra: normalizedCaloriesOutExtra,
         note: note.trim() || null,
       },
       { onConflict: 'owner,date' }
     );
 
-    if (quickMealText.trim() && parseInt(caloriesIn, 10) > 0) {
-      await upsertPreset(owner, 'meal', quickMealText, parseInt(caloriesIn, 10), note.trim() || undefined);
+    if (quickMealText.trim() && normalizedCaloriesIn > 0) {
+      await upsertPreset(owner, 'meal', quickMealText, normalizedCaloriesIn, note.trim() || undefined);
     }
 
-    if (quickExerciseText.trim() && parseInt(caloriesOutExtra || '0', 10) > 0) {
-      await upsertPreset(owner, 'exercise', quickExerciseText, parseInt(caloriesOutExtra || '0', 10), note.trim() || undefined);
+    if (quickExerciseText.trim() && normalizedCaloriesOutExtra > 0) {
+      await upsertPreset(owner, 'exercise', quickExerciseText, normalizedCaloriesOutExtra, note.trim() || undefined);
     }
 
     setCaloriesIn('');
@@ -618,7 +621,7 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
                   </div>
                   <div className="flex gap-2 rounded-2xl border border-white/5 bg-black/20 p-1.5">
                     <input type="text" placeholder="Megjegyzés opcionálisan, pl. étterem, futás, lábnap" value={note} onChange={(event) => setNote(event.target.value)} className="flex-1 bg-transparent px-3 text-sm text-white outline-none placeholder:text-white/20" />
-                    <button onClick={handleSaveLog} disabled={!effectiveMaintenance || !caloriesIn} className="flex w-12 items-center justify-center rounded-xl bg-emerald-500 text-black transition-colors hover:bg-emerald-400 disabled:opacity-50"><Plus size={20} /></button>
+                    <button onClick={handleSaveLog} disabled={!effectiveMaintenance || (parseInt(caloriesIn || '0', 10) <= 0 && parseInt(caloriesOutExtra || '0', 10) <= 0)} className="flex w-12 items-center justify-center rounded-xl bg-emerald-500 text-black transition-colors hover:bg-emerald-400 disabled:opacity-50"><Plus size={20} /></button>
                   </div>
                 </div>
               </div>

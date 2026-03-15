@@ -223,3 +223,15 @@
 - `npm run lint` lefutott
   - továbbra is csak a két régi `SchoolTimetable.tsx` warning maradt
 - `npm run build` sikeres
+
+## 2026-03-15 21:35 +01:00
+
+### Kalóriamérleg javítás: csak mozgás mentése
+
+- a kalóriamérleg mentése már nem követeli meg, hogy legyen bevitt kalória is
+- most már elmenthető egy olyan nap is, ahol csak extra mozgás / elégetett kalória lett rögzítve
+- a mentés feltétele most:
+  - legyen számolható vagy kézi alap kcal
+  - legyen dátum
+  - és legyen legalább étkezés vagy mozgás adat
+- a sablonmentés is ehhez igazodott, így a csak mozgásos napokból is készülhet újrahasználható mozgás preset
