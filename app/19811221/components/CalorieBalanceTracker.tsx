@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/app/supabase';
@@ -14,7 +14,18 @@ import {
 } from 'recharts';
 import { format, isAfter, parseISO, subMonths, subYears } from 'date-fns';
 import { hu } from 'date-fns/locale';
-import { Flame, ChevronDown, ChevronUp, Plus, Target, TrendingDown, TrendingUp } from 'lucide-react';
+import {
+  Flame,
+  ChevronDown,
+  ChevronUp,
+  Plus,
+  Target,
+  TrendingDown,
+  TrendingUp,
+  Save,
+  Sparkles,
+  Loader2,
+} from 'lucide-react';
 
 type CalorieLog = {
   id: string;
@@ -24,6 +35,23 @@ type CalorieLog = {
   calories_in: number;
   calories_out_extra: number;
   note: string | null;
+};
+
+type CalorieProfile = {
+  id: string;
+  owner: string;
+  maintenance_calories: number;
+};
+
+type GeminiEstimate = {
+  totalCalories: number;
+  items: Array<{
+    name: string;
+    estimatedCalories: number;
+    reason: string;
+  }>;
+  assumptions: string;
+  confidence: number;
 };
 
 type RangeValue = '1M' | '3M' | '6M' | '1Y' | 'ALL';
@@ -70,29 +98,39 @@ function formatBalance(balance: number) {
 
 export default function CalorieBalanceTracker({ owner }: { owner: string }) {
   const [logs, setLogs] = useState<CalorieLog[]>([]);
-  const [calorieTarget, setCalorieTarget] = useState('');
+  const [profile, setProfile] = useState<CalorieProfile | null>(null);
+  const [maintenanceCalories, setMaintenanceCalories] = useState('');
   const [caloriesIn, setCaloriesIn] = useState('');
   const [caloriesOutExtra, setCaloriesOutExtra] = useState('0');
   const [note, setNote] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [range, setRange] = useState<RangeValue>('3M');
+  const [quickMealText, setQuickMealText] = useState('');
+  const [estimate, setEstimate] = useState<GeminiEstimate | null>(null);
   const [loading, setLoading] = useState(true);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [estimating, setEstimating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [estimateError, setEstimateError] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
 
-  const fetchLogs = useCallback(async () => {
-    const { data } = await supabase
-      .from('calorie_logs')
-      .select('*')
-      .eq('owner', owner)
-      .order('date', { ascending: true });
+  const fetchData = useCallback(async () => {
+    const [logsResult, profileResult] = await Promise.all([
+      supabase.from('calorie_logs').select('*').eq('owner', owner).order('date', { ascending: true }),
+      supabase.from('calorie_profiles').select('*').eq('owner', owner).maybeSingle(),
+    ]);
 
-    if (data) {
-      const typedData = data as CalorieLog[];
-      setLogs(typedData);
-      if (typedData.length > 0) {
-        const lastLog = typedData[typedData.length - 1];
-        setCalorieTarget((current) => current || String(lastLog.calorie_target));
-      }
+    if (logsResult.data) {
+      setLogs(logsResult.data as CalorieLog[]);
+    }
+
+    if (profileResult.data) {
+      const typedProfile = profileResult.data as CalorieProfile;
+      setProfile(typedProfile);
+      setMaintenanceCalories(String(typedProfile.maintenance_calories));
+    } else {
+      setProfile(null);
+      setMaintenanceCalories('');
     }
 
     setLoading(false);
@@ -100,10 +138,10 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
 
   useEffect(() => {
     const initTimer = setTimeout(() => {
-      void fetchLogs();
+      void fetchData();
     }, 0);
     return () => clearTimeout(initTimer);
-  }, [fetchLogs]);
+  }, [fetchData]);
 
   const filteredData = useMemo(() => {
     if (range === 'ALL') return logs;
@@ -134,6 +172,7 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
 
   const latestBalance = latestLog ? getBalance(latestLog) : null;
   const status = latestBalance !== null ? getStatus(latestBalance) : null;
+  const effectiveMaintenance = profile?.maintenance_calories ?? 0;
 
   const averages = useMemo(() => {
     if (filteredData.length === 0) {
@@ -160,16 +199,52 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
     };
   }, [filteredData]);
 
-  const handleSaveLog = async () => {
-    if (!calorieTarget || !caloriesIn || !date) {
+  const saveProfile = async () => {
+    if (!maintenanceCalories) {
+      setError('Adj meg egy napi alap fenntartó kalóriaértéket.');
       return;
     }
+
+    setSavingProfile(true);
+    setError(null);
+
+    const { data, error: profileError } = await supabase
+      .from('calorie_profiles')
+      .upsert(
+        {
+          owner,
+          maintenance_calories: parseInt(maintenanceCalories, 10),
+        },
+        { onConflict: 'owner' }
+      )
+      .select('*')
+      .single();
+
+    setSavingProfile(false);
+
+    if (profileError) {
+      setError(profileError.message);
+      return;
+    }
+
+    setProfile(data as CalorieProfile);
+  };
+
+  const handleSaveLog = async () => {
+    const maintenance = parseInt(maintenanceCalories || String(effectiveMaintenance || 0), 10);
+
+    if (!maintenance || !caloriesIn || !date) {
+      setError('A mentéshez kell napi alap kalória és bevitt kalória.');
+      return;
+    }
+
+    setError(null);
 
     await supabase.from('calorie_logs').upsert(
       {
         owner,
         date,
-        calorie_target: parseInt(calorieTarget, 10),
+        calorie_target: maintenance,
         calories_in: parseInt(caloriesIn, 10),
         calories_out_extra: parseInt(caloriesOutExtra || '0', 10),
         note: note.trim() || null,
@@ -180,7 +255,45 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
     setCaloriesIn('');
     setCaloriesOutExtra('0');
     setNote('');
-    void fetchLogs();
+    setEstimate(null);
+    setQuickMealText('');
+    await fetchData();
+  };
+
+  const estimateMeal = async () => {
+    if (!quickMealText.trim()) {
+      setEstimateError('Írj be egy rövid étkezésleírást.');
+      return;
+    }
+
+    setEstimating(true);
+    setEstimateError(null);
+
+    try {
+      const response = await fetch('/api/calorie/estimate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ owner, text: quickMealText }),
+      });
+
+      const payload = (await response.json()) as { estimate?: GeminiEstimate; error?: string };
+      if (!response.ok || !payload.estimate) {
+        throw new Error(payload.error || 'Nem sikerült becslést kérni.');
+      }
+
+      const nextEstimate = payload.estimate;
+      setEstimate(nextEstimate);
+      setCaloriesIn(String(nextEstimate.totalCalories));
+      setNote((current) => current || nextEstimate.assumptions || 'Gemini becslés alapján előtöltve.');
+    } catch (estimateFailure) {
+      setEstimateError(
+        estimateFailure instanceof Error ? estimateFailure.message : 'Ismeretlen hiba történt a becslés közben.'
+      );
+    } finally {
+      setEstimating(false);
+    }
   };
 
   if (loading) return null;
@@ -218,10 +331,45 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
             className="mx-1 -mt-2 overflow-hidden rounded-b-2xl border-x border-b border-white/5 bg-[#0a0c10]/50 px-4 pb-6 pt-4"
           >
             <div className="space-y-6">
+              {error && (
+                <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+                  {error}
+                </div>
+              )}
+
+              <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <div className="text-[10px] font-black uppercase tracking-widest text-white/40">Napi alap</div>
+                    <div className="mt-1 text-sm text-white/60">
+                      Ez lesz az app alap becslése arra, mennyi kalóriát égetsz el egy átlagos napon külön sport nélkül.
+                    </div>
+                  </div>
+
+                  <div className="flex w-full gap-2 sm:w-auto">
+                    <input
+                      type="number"
+                      value={maintenanceCalories}
+                      onChange={(event) => setMaintenanceCalories(event.target.value)}
+                      placeholder="pl. 2400"
+                      className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 font-bold text-white outline-none placeholder:text-white/20 sm:w-36"
+                    />
+                    <button
+                      onClick={saveProfile}
+                      disabled={savingProfile || !maintenanceCalories}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 font-black uppercase tracking-widest text-black transition-colors hover:bg-emerald-400 disabled:opacity-50"
+                    >
+                      {savingProfile ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                      Mentés
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               {latestLog && status ? (
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
-                    <div className="text-[10px] font-black uppercase tracking-widest text-white/40">Napi cél</div>
+                    <div className="text-[10px] font-black uppercase tracking-widest text-white/40">Napi alap</div>
                     <div className="mt-2 text-2xl font-black text-white">{latestLog.calorie_target}</div>
                     <div className="text-xs text-white/40">kcal</div>
                   </div>
@@ -248,7 +396,7 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
                 </div>
               ) : (
                 <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-4 text-sm italic text-white/40">
-                  Még nincs kalórianapló bejegyzés. Az első nap rögzítése után itt látod, deficitben vagy-e.
+                  Még nincs kalórianapló bejegyzés. Állíts be napi alap kalóriát, majd rögzíts egy napot.
                 </div>
               )}
 
@@ -304,7 +452,7 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
                 {averages && (
                   <div className="grid gap-3 rounded-2xl border border-white/5 bg-white/5 p-4 sm:grid-cols-4">
                     <div>
-                      <div className="text-[10px] font-black uppercase tracking-widest text-white/40">Átlag cél</div>
+                      <div className="text-[10px] font-black uppercase tracking-widest text-white/40">Átlag alap</div>
                       <div className="mt-1 text-sm font-bold text-white">{averages.target} kcal</div>
                     </div>
                     <div>
@@ -325,27 +473,68 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
                 )}
 
                 <div className="space-y-3 rounded-2xl border border-white/5 bg-white/5 p-3">
-                  <div className="grid gap-2 sm:grid-cols-[1fr_1fr] lg:grid-cols-[110px_1fr_1fr_120px]">
-                    <input
-                      type="number"
-                      placeholder="Cél"
-                      value={calorieTarget}
-                      onChange={(event) => setCalorieTarget(event.target.value)}
-                      className="w-full rounded-xl border border-white/10 bg-black/20 p-3 font-bold text-white outline-none placeholder-white/20"
+                  <div className="text-[10px] font-black uppercase tracking-widest text-white/40">Gemini gyors bevitel</div>
+                  <div className="space-y-2">
+                    <textarea
+                      rows={3}
+                      value={quickMealText}
+                      onChange={(event) => setQuickMealText(event.target.value)}
+                      placeholder="Példa: ettem 3 tojást, két szelet kenyeret, egy csirkés rizst és egy protein shake-et"
+                      className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-white/20"
                     />
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <button
+                        onClick={estimateMeal}
+                        disabled={estimating || !quickMealText.trim()}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 font-black uppercase tracking-widest text-white transition-colors hover:bg-white/10 disabled:opacity-50"
+                      >
+                        {estimating ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                        Gemini becslés
+                      </button>
+                      {estimate && (
+                        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+                          Becsült összesen: <span className="font-black">{estimate.totalCalories} kcal</span>
+                        </div>
+                      )}
+                    </div>
+                    {estimateError && <div className="text-sm text-rose-200">{estimateError}</div>}
+                  </div>
+
+                  {estimate && (
+                    <div className="space-y-3 rounded-2xl border border-emerald-500/15 bg-black/20 p-4">
+                      <div className="flex flex-wrap items-center gap-2 text-xs font-black uppercase tracking-widest text-emerald-200">
+                        <span>Becsült elemek</span>
+                        <span className="rounded-full bg-white/5 px-2 py-1 text-white/70">Pontosság: {estimate.confidence}%</span>
+                      </div>
+                      <div className="space-y-2 text-sm text-white/80">
+                        {estimate.items.map((item, index) => (
+                          <div key={`${item.name}-${index}`} className="rounded-xl border border-white/5 bg-white/5 px-3 py-2">
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="font-bold text-white">{item.name}</span>
+                              <span className="text-emerald-300">{item.estimatedCalories} kcal</span>
+                            </div>
+                            <div className="mt-1 text-xs text-white/45">{item.reason}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="text-xs text-white/50">{estimate.assumptions}</div>
+                    </div>
+                  )}
+
+                  <div className="grid gap-2 sm:grid-cols-[1fr_1fr] lg:grid-cols-[1fr_1fr_120px]">
                     <input
                       type="number"
                       placeholder="Bevitt kcal"
                       value={caloriesIn}
                       onChange={(event) => setCaloriesIn(event.target.value)}
-                      className="w-full rounded-xl border border-white/10 bg-black/20 p-3 font-bold text-white outline-none placeholder-white/20"
+                      className="w-full rounded-xl border border-white/10 bg-black/20 p-3 font-bold text-white outline-none placeholder:text-white/20"
                     />
                     <input
                       type="number"
                       placeholder="Extra mozgás"
                       value={caloriesOutExtra}
                       onChange={(event) => setCaloriesOutExtra(event.target.value)}
-                      className="w-full rounded-xl border border-white/10 bg-black/20 p-3 font-bold text-white outline-none placeholder-white/20"
+                      className="w-full rounded-xl border border-white/10 bg-black/20 p-3 font-bold text-white outline-none placeholder:text-white/20"
                     />
                     <input
                       type="date"
@@ -365,7 +554,7 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
                     />
                     <button
                       onClick={handleSaveLog}
-                      disabled={!calorieTarget || !caloriesIn}
+                      disabled={!maintenanceCalories || !caloriesIn}
                       className="flex w-12 items-center justify-center rounded-xl bg-emerald-500 text-black transition-colors hover:bg-emerald-400 disabled:opacity-50"
                     >
                       <Plus size={20} />

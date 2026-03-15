@@ -1,4 +1,4 @@
-# Stuller családi app
+﻿# Stuller családi app
 
 Next.js + Supabase alapú családi PWA.
 
@@ -10,6 +10,8 @@ Next.js + Supabase alapú családi PWA.
 - Rocka elszámolás
 - push értesítések
 - otthon / jelenlét modul
+- személyes súlynapló
+- személyes kalóriamérleg
 
 ## Fejlesztői indítás
 
@@ -27,9 +29,10 @@ SUPABASE_SERVICE_ROLE_KEY=
 NEXT_PUBLIC_VAPID_PUBLIC_KEY=
 VAPID_PRIVATE_KEY=
 HOUSE_SENSOR_TOKEN=
+GEMINI_API_KEY=
 ```
 
-## Új otthon modul
+## Otthon modul
 
 Az otthon modul fő táblái:
 
@@ -78,17 +81,37 @@ Az ingest route:
 - frissíti az eszköz állapotát
 - jelenléti állapotot számol
 - eseményt generál
-- szükség esetén push értesítést küld
 
 Az Android szenzor külön projektben található:
 
 - `android-house-sensor`
+
+## Kalóriamérleg modul
+
+Az új személyes kalóriamérleg modul táblái:
+
+- `calorie_profiles`
+- `calorie_logs`
+
+Mit tud jelenleg:
+
+- személyes napi alap / fenntartó kcal beállítás
+- napi bevitt kalória mentése
+- extra mozgás / elégetett kalória mentése
+- napi egyenleg számítása
+- egyszerű státusz: deficitben / nagyjából szinten / többletben
+- Gemini-alapú gyors étkezésbecslés a `POST /api/calorie/estimate` végponton keresztül
+
+A Gemini becslőhöz szükséges:
+
+- `GEMINI_API_KEY`
 
 ## Ajánlott rendszerkép
 
 1. a családi dashboard `Otthon` paneljén felveszed az eszközöket
 2. az otthon hagyott Android szenzor POST-ol az ingest endpointnak
 3. a PWA realtime-ban mutatja az állapotot és az eseményeket
+4. a személyes oldalakon külön owner-alapon mennek a testsúly- és kalóriamérleg adatok
 
 ## Ellenőrzés
 

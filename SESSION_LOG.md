@@ -150,3 +150,41 @@
 - `npm run lint` lefutott
   - továbbra is csak a két régi `SchoolTimetable.tsx` warning maradt
 - `npm run build` sikeres
+
+## 2026-03-15 20:40 +01:00
+
+### Kalóriamérleg bővítés: fenntartó kcal + Gemini gyors bevitel
+
+- új Supabase tábla került be: `calorie_profiles`
+- személyenként külön menthető napi alap / fenntartó kalóriaérték
+- a kalóriamérleg modul most már nem napi kézi célértékre épít, hanem a személyes fenntartó kcal profilra
+- a napi egyenleg számítása így történik:
+  - `bevitt kcal - extra mozgás - fenntartó kcal`
+- bekerült egy új API végpont:
+  - `POST /api/calorie/estimate`
+- ez a végpont Gemini segítségével becslést kér egy szöveges étkezésleírásból
+- a becslés eredménye:
+  - összes becsült kalória
+  - tételes bontás
+  - rövid feltételezések
+  - megbízhatósági százalék
+- a becslés nem ment automatikusan, csak előtölti a mezőket, így a felhasználó marad kontrollban
+
+### Használat
+
+- először érdemes beállítani a személyes napi alap kalóriát
+- utána lehet:
+  - kézzel beírni a bevitt kalóriát
+  - vagy a Gemini gyors bevitellel becsültetni
+- az extra mozgás külön mezőben levonható a napi egyenlegből
+
+### Környezeti változó
+
+- az AI becsléshez szükséges új env:
+  - `GEMINI_API_KEY`
+
+### Ellenőrzés
+
+- `npm run lint` lefutott
+  - továbbra is csak a két régi `SchoolTimetable.tsx` warning maradt
+- `npm run build` sikeres
