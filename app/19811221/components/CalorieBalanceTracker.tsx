@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/app/supabase';
@@ -27,14 +27,28 @@ import {
   TrendingUp,
 } from 'lucide-react';
 
-type CalorieLog = {
+type CalorieEntry = {
   id: string;
   owner: string;
+  entry_date: string;
+  entry_type: 'meal' | 'exercise';
+  label: string | null;
+  calories: number;
+  maintenance_calories: number;
+  note: string | null;
+  source_type: 'manual' | 'ai' | 'preset';
+  source_text: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type DailyCalorieLog = {
   date: string;
   calorie_target: number;
   calories_in: number;
   calories_out_extra: number;
-  note: string | null;
+  balance: number;
+  entries: CalorieEntry[];
 };
 
 type CalorieProfile = {
@@ -79,6 +93,7 @@ type GeminiEstimate = {
 type EstimateMode = 'meal' | 'exercise';
 type RangeValue = '1M' | '3M' | '6M' | '1Y' | 'ALL';
 type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
+type EntrySourceType = 'manual' | 'ai' | 'preset';
 
 const RANGES: Array<{ label: string; value: RangeValue }> = [
   { label: '1H', value: '1M' },
@@ -96,7 +111,7 @@ const ACTIVITY_LEVEL_OPTIONS: Array<{ value: ActivityLevel; label: string; multi
   { value: 'very_active', label: 'Nagyon aktív', multiplier: 1.9 },
 ];
 
-function getBalance(log: Pick<CalorieLog, 'calorie_target' | 'calories_in' | 'calories_out_extra'>) {
+function getBalance(log: Pick<DailyCalorieLog, 'calorie_target' | 'calories_in' | 'calories_out_extra'>) {
   return log.calories_in - log.calories_out_extra - log.calorie_target;
 }
 
@@ -150,6 +165,42 @@ function buildPresetLabel(text: string) {
   return text.trim().replace(/\s+/g, ' ').slice(0, 80);
 }
 
+function buildEntryLabel(sourceText: string, fallback: string) {
+  const label = buildPresetLabel(sourceText);
+  return label || fallback;
+}
+
+function aggregateEntries(entries: CalorieEntry[]) {
+  const grouped = new Map<string, DailyCalorieLog>();
+
+  for (const entry of entries) {
+    const existing =
+      grouped.get(entry.entry_date) ??
+      ({
+        date: entry.entry_date,
+        calorie_target: entry.maintenance_calories,
+        calories_in: 0,
+        calories_out_extra: 0,
+        balance: 0,
+        entries: [],
+      } satisfies DailyCalorieLog);
+
+    existing.calorie_target = Math.max(existing.calorie_target, entry.maintenance_calories);
+    existing.entries.push(entry);
+
+    if (entry.entry_type === 'meal') {
+      existing.calories_in += entry.calories;
+    } else {
+      existing.calories_out_extra += entry.calories;
+    }
+
+    existing.balance = getBalance(existing);
+    grouped.set(entry.entry_date, existing);
+  }
+
+  return [...grouped.values()].sort((left, right) => left.date.localeCompare(right.date));
+}
+
 async function upsertPreset(owner: string, presetType: EstimateMode, sourceText: string, calories: number, note?: string) {
   const label = buildPresetLabel(sourceText);
   if (!label || !calories) {
@@ -171,7 +222,7 @@ async function upsertPreset(owner: string, presetType: EstimateMode, sourceText:
 }
 
 export default function CalorieBalanceTracker({ owner }: { owner: string }) {
-  const [logs, setLogs] = useState<CalorieLog[]>([]);
+  const [entries, setEntries] = useState<CalorieEntry[]>([]);
   const [profile, setProfile] = useState<CalorieProfile | null>(null);
   const [latestWeight, setLatestWeight] = useState<number | null>(null);
   const [mealPresets, setMealPresets] = useState<CaloriePreset[]>([]);
@@ -193,9 +244,12 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
   const [quickExerciseText, setQuickExerciseText] = useState('');
   const [mealEstimate, setMealEstimate] = useState<GeminiEstimate | null>(null);
   const [exerciseEstimate, setExerciseEstimate] = useState<GeminiEstimate | null>(null);
+  const [mealSourceType, setMealSourceType] = useState<EntrySourceType>('manual');
+  const [exerciseSourceType, setExerciseSourceType] = useState<EntrySourceType>('manual');
 
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
+  const [savingEntries, setSavingEntries] = useState(false);
   const [estimatingMeal, setEstimatingMeal] = useState(false);
   const [estimatingExercise, setEstimatingExercise] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -204,15 +258,20 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
   const [isOpen, setIsOpen] = useState(false);
 
   const fetchData = useCallback(async () => {
-    const [logsResult, profileResult, weightResult, presetsResult] = await Promise.all([
-      supabase.from('calorie_logs').select('*').eq('owner', owner).order('date', { ascending: true }),
+    const [entriesResult, profileResult, weightResult, presetsResult] = await Promise.all([
+      supabase
+        .from('calorie_entries')
+        .select('*')
+        .eq('owner', owner)
+        .order('entry_date', { ascending: true })
+        .order('created_at', { ascending: true }),
       supabase.from('calorie_profiles').select('*').eq('owner', owner).maybeSingle(),
       supabase.from('weight_logs').select('*').eq('owner', owner).order('date', { ascending: false }).limit(1),
       supabase.from('calorie_presets').select('*').eq('owner', owner).order('last_used_at', { ascending: false }).limit(12),
     ]);
 
-    if (logsResult.data) {
-      setLogs(logsResult.data as CalorieLog[]);
+    if (entriesResult.data) {
+      setEntries(entriesResult.data as CalorieEntry[]);
     }
 
     if (profileResult.data) {
@@ -254,8 +313,10 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
     latestWeight && profile?.height_cm && profile?.age_years && profile?.sex && profile?.activity_level
   );
 
+  const dailyLogs = useMemo(() => aggregateEntries(entries), [entries]);
+
   const filteredData = useMemo(() => {
-    if (range === 'ALL') return logs;
+    if (range === 'ALL') return dailyLogs;
 
     const now = new Date();
     let cutOffDate = new Date();
@@ -264,8 +325,8 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
     if (range === '6M') cutOffDate = subMonths(now, 6);
     if (range === '1Y') cutOffDate = subYears(now, 1);
 
-    return logs.filter((log) => isAfter(parseISO(log.date), cutOffDate));
-  }, [logs, range]);
+    return dailyLogs.filter((log) => isAfter(parseISO(log.date), cutOffDate));
+  }, [dailyLogs, range]);
 
   const chartData = useMemo(
     () =>
@@ -277,9 +338,17 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
   );
 
   const latestLog = useMemo(() => {
-    if (logs.length === 0) return null;
-    return logs[logs.length - 1];
-  }, [logs]);
+    if (dailyLogs.length === 0) return null;
+    return dailyLogs[dailyLogs.length - 1];
+  }, [dailyLogs]);
+
+  const selectedDateEntries = useMemo(
+    () =>
+      entries
+        .filter((entry) => entry.entry_date === date)
+        .sort((left, right) => left.created_at.localeCompare(right.created_at)),
+    [date, entries]
+  );
 
   const latestBalance = latestLog ? getBalance(latestLog) : null;
   const status = latestBalance !== null ? getStatus(latestBalance) : null;
@@ -392,10 +461,12 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
       const nextEstimate = payload.estimate;
       if (mode === 'meal') {
         setMealEstimate(nextEstimate);
+        setMealSourceType('ai');
         setCaloriesIn(String(nextEstimate.totalCalories));
         setNote((current) => current || nextEstimate.assumptions || 'Gemini becslés alapján előtöltve.');
       } else {
         setExerciseEstimate(nextEstimate);
+        setExerciseSourceType('ai');
         setCaloriesOutExtra(String(nextEstimate.totalCalories));
         setNote((current) => current || nextEstimate.assumptions || 'Gemini becslés alapján előtöltve.');
       }
@@ -418,9 +489,11 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
 
   const applyPreset = (preset: CaloriePreset) => {
     if (preset.preset_type === 'meal') {
+      setMealSourceType('preset');
       setQuickMealText(preset.source_text || preset.label);
       setCaloriesIn(String(preset.estimated_calories));
     } else {
+      setExerciseSourceType('preset');
       setQuickExerciseText(preset.source_text || preset.label);
       setCaloriesOutExtra(String(preset.estimated_calories));
     }
@@ -437,19 +510,46 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
       return;
     }
 
+    setSavingEntries(true);
     setError(null);
 
-    await supabase.from('calorie_logs').upsert(
-      {
+    const inserts: Array<Omit<CalorieEntry, 'id' | 'created_at' | 'updated_at'>> = [];
+
+    if (normalizedCaloriesIn > 0) {
+      inserts.push({
         owner,
-        date,
-        calorie_target: effectiveMaintenance,
-        calories_in: normalizedCaloriesIn,
-        calories_out_extra: normalizedCaloriesOutExtra,
+        entry_date: date,
+        entry_type: 'meal',
+        label: buildEntryLabel(quickMealText, 'Kézi étkezés'),
+        calories: normalizedCaloriesIn,
+        maintenance_calories: effectiveMaintenance,
         note: note.trim() || null,
-      },
-      { onConflict: 'owner,date' }
-    );
+        source_type: mealSourceType,
+        source_text: quickMealText.trim() || null,
+      });
+    }
+
+    if (normalizedCaloriesOutExtra > 0) {
+      inserts.push({
+        owner,
+        entry_date: date,
+        entry_type: 'exercise',
+        label: buildEntryLabel(quickExerciseText, 'Kézi mozgás'),
+        calories: normalizedCaloriesOutExtra,
+        maintenance_calories: effectiveMaintenance,
+        note: note.trim() || null,
+        source_type: exerciseSourceType,
+        source_text: quickExerciseText.trim() || null,
+      });
+    }
+
+    const { error: insertError } = await supabase.from('calorie_entries').insert(inserts);
+    setSavingEntries(false);
+
+    if (insertError) {
+      setError(insertError.message);
+      return;
+    }
 
     if (quickMealText.trim() && normalizedCaloriesIn > 0) {
       await upsertPreset(owner, 'meal', quickMealText, normalizedCaloriesIn, note.trim() || undefined);
@@ -466,6 +566,8 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
     setQuickExerciseText('');
     setMealEstimate(null);
     setExerciseEstimate(null);
+    setMealSourceType('manual');
+    setExerciseSourceType('manual');
     await fetchData();
   };
 
@@ -475,7 +577,7 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
     <div className="space-y-2">
       <div
         onClick={() => setIsOpen(!isOpen)}
-        className="flex cursor-pointer items-center justify-between rounded-2xl border border-white/5 bg-[#0a0c10] p-4 transition-colors group hover:bg-white/5"
+        className="group flex cursor-pointer items-center justify-between rounded-2xl border border-white/5 bg-[#0a0c10] p-4 transition-colors hover:bg-white/5"
       >
         <div className="flex items-center gap-4">
           <div className={`transition-transform duration-300 ${isOpen ? 'rotate-180' : 'rotate-0'}`}>
@@ -559,7 +661,7 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
                   <div className="rounded-2xl border border-white/5 bg-white/5 p-4"><div className="text-[10px] font-black uppercase tracking-widest text-white/40">Egyenleg</div><div className={`mt-2 text-2xl font-black ${latestBalance !== null && latestBalance <= 0 ? 'text-emerald-400' : 'text-rose-300'}`}>{latestBalance !== null ? formatBalance(latestBalance) : '—'}</div><div className={`mt-1 inline-flex items-center gap-2 rounded-xl border px-2.5 py-1 text-[10px] font-black uppercase tracking-widest ${status.tone}`}><status.icon size={12} />{status.label}</div></div>
                 </div>
               ) : (
-                <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-4 text-sm italic text-white/40">Még nincs kalórianapló bejegyzés. Állíts be profilt, és rögzíts egy napot a pontosabb követéshez.</div>
+                <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-4 text-sm italic text-white/40">Még nincs kalórianapló bejegyzés. Állíts be profilt, és rögzíts egy étkezést vagy mozgást a pontosabb követéshez.</div>
               )}
 
               <div className="h-64 w-full">
@@ -593,7 +695,7 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
 
                 <div className="space-y-3 rounded-2xl border border-white/5 bg-white/5 p-3">
                   <div className="text-[10px] font-black uppercase tracking-widest text-white/40">Gemini gyors étkezés</div>
-                  <textarea rows={3} value={quickMealText} onChange={(event) => setQuickMealText(event.target.value)} placeholder="Példa: ettem 3 tojást, két szelet kenyeret és egy protein shake-et" className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-white/20" />
+                  <textarea rows={3} value={quickMealText} onChange={(event) => { setQuickMealText(event.target.value); setMealSourceType('manual'); }} placeholder="Példa: ettem 3 tojást, két szelet kenyeret és egy protein shake-et" className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-white/20" />
                   <div className="flex flex-wrap gap-2">{mealPresets.map((preset) => (<button key={preset.id} onClick={() => applyPreset(preset)} className="rounded-full border border-white/10 bg-black/20 px-3 py-2 text-xs font-black uppercase tracking-widest text-white/80 hover:bg-white/10">{preset.label}</button>))}</div>
                   <div className="flex flex-col gap-2 sm:flex-row">
                     <button onClick={() => void estimateWithGemini('meal')} disabled={estimatingMeal || !quickMealText.trim()} className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 font-black uppercase tracking-widest text-white transition-colors hover:bg-white/10 disabled:opacity-50">{estimatingMeal ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}Gemini becslés</button>
@@ -604,7 +706,7 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
 
                 <div className="space-y-3 rounded-2xl border border-white/5 bg-white/5 p-3">
                   <div className="text-[10px] font-black uppercase tracking-widest text-white/40">Gemini gyors mozgás</div>
-                  <textarea rows={3} value={quickExerciseText} onChange={(event) => setQuickExerciseText(event.target.value)} placeholder="Példa: 45 perc gyors séta dombos terepen, vagy 50 perc közepes intenzitású súlyzós edzés" className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-white/20" />
+                  <textarea rows={3} value={quickExerciseText} onChange={(event) => { setQuickExerciseText(event.target.value); setExerciseSourceType('manual'); }} placeholder="Példa: 45 perc gyors séta dombos terepen, vagy 50 perc közepes intenzitású súlyzós edzés" className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-white/20" />
                   <div className="flex flex-wrap gap-2">{exercisePresets.map((preset) => (<button key={preset.id} onClick={() => applyPreset(preset)} className="rounded-full border border-white/10 bg-black/20 px-3 py-2 text-xs font-black uppercase tracking-widest text-white/80 hover:bg-white/10">{preset.label}</button>))}</div>
                   <div className="flex flex-col gap-2 sm:flex-row">
                     <button onClick={() => void estimateWithGemini('exercise')} disabled={estimatingExercise || !quickExerciseText.trim()} className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 font-black uppercase tracking-widest text-white transition-colors hover:bg-white/10 disabled:opacity-50">{estimatingExercise ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}Gemini mozgásbecslés</button>
@@ -614,15 +716,53 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
                 </div>
 
                 <div className="space-y-3 rounded-2xl border border-white/5 bg-white/5 p-3">
-                  <div className="grid gap-2 sm:grid-cols-[1fr_1fr_120px]">
+                  <div className="grid gap-2 sm:grid-cols-[1fr_1fr_140px]">
                     <input type="number" placeholder="Bevitt kcal" value={caloriesIn} onChange={(event) => setCaloriesIn(event.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 p-3 font-bold text-white outline-none placeholder:text-white/20" />
                     <input type="number" placeholder="Extra mozgás" value={caloriesOutExtra} onChange={(event) => setCaloriesOutExtra(event.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 p-3 font-bold text-white outline-none placeholder:text-white/20" />
                     <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 p-3 text-sm font-bold uppercase tracking-wide text-white/80 outline-none" />
                   </div>
+                  <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-xs text-white/60">
+                    Egy napon belül több külön tételt is rögzíthetsz. A mentés most új étkezés- és/vagy mozgásbejegyzést ad hozzá a kiválasztott dátumhoz.
+                  </div>
                   <div className="flex gap-2 rounded-2xl border border-white/5 bg-black/20 p-1.5">
                     <input type="text" placeholder="Megjegyzés opcionálisan, pl. étterem, futás, lábnap" value={note} onChange={(event) => setNote(event.target.value)} className="flex-1 bg-transparent px-3 text-sm text-white outline-none placeholder:text-white/20" />
-                    <button onClick={handleSaveLog} disabled={!effectiveMaintenance || (parseInt(caloriesIn || '0', 10) <= 0 && parseInt(caloriesOutExtra || '0', 10) <= 0)} className="flex w-12 items-center justify-center rounded-xl bg-emerald-500 text-black transition-colors hover:bg-emerald-400 disabled:opacity-50"><Plus size={20} /></button>
+                    <button onClick={handleSaveLog} disabled={savingEntries || !effectiveMaintenance || (parseInt(caloriesIn || '0', 10) <= 0 && parseInt(caloriesOutExtra || '0', 10) <= 0)} className="flex w-12 items-center justify-center rounded-xl bg-emerald-500 text-black transition-colors hover:bg-emerald-400 disabled:opacity-50">{savingEntries ? <Loader2 size={18} className="animate-spin" /> : <Plus size={20} />}</button>
                   </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-widest text-white/40">Napi tételek</div>
+                      <div className="mt-1 text-sm text-white/60">{format(parseISO(date), 'yyyy. MMMM d.', { locale: hu })}</div>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs font-black uppercase tracking-widest text-white/70">
+                      {selectedDateEntries.length} tétel
+                    </div>
+                  </div>
+
+                  {selectedDateEntries.length > 0 ? (
+                    <div className="space-y-2">
+                      {selectedDateEntries.map((entry) => (
+                        <div key={entry.id} className="flex flex-col gap-2 rounded-2xl border border-white/5 bg-black/20 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <div className="text-sm font-black text-white">{entry.label || (entry.entry_type === 'meal' ? 'Étkezés' : 'Mozgás')}</div>
+                            <div className="mt-1 text-xs text-white/45">
+                              {entry.entry_type === 'meal' ? 'Étkezés' : 'Mozgás'} · {entry.source_type === 'ai' ? 'AI becslés' : entry.source_type === 'preset' ? 'Sablon' : 'Kézi'}
+                            </div>
+                            {entry.note && <div className="mt-1 text-xs text-white/60">{entry.note}</div>}
+                          </div>
+                          <div className={`rounded-xl px-3 py-2 text-sm font-black ${entry.entry_type === 'meal' ? 'bg-amber-500/15 text-amber-200' : 'bg-sky-500/15 text-sky-200'}`}>
+                            {entry.entry_type === 'meal' ? '+' : '-'}{entry.calories} kcal
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-4 text-sm italic text-white/40">
+                      A kiválasztott naphoz még nincs külön tétel. Itt fogod látni a több étkezést és több mozgást is ugyanarra a napra.
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

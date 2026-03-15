@@ -119,3 +119,13 @@ A Gemini becslőhöz szükséges:
 npm run lint
 npm run build
 ```
+
+### Frissítés: több tételes napi kalórianapló
+
+A kalóriamérleg most már a `calorie_entries` táblát használja a részletes naplózáshoz.
+
+Mit jelent ez:
+- egy napon belül több külön étkezés is menthető
+- egy napon belül több külön mozgás is menthető
+- a napi összesítés ezekből a tételekből számolódik
+- a korábbi sablonok továbbra is újrahasználhatók

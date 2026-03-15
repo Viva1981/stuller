@@ -235,3 +235,20 @@
   - legyen dátum
   - és legyen legalább étkezés vagy mozgás adat
 - a sablonmentés is ehhez igazodott, így a csak mozgásos napokból is készülhet újrahasználható mozgás preset
+
+## 2026-03-15 22:15 +01:00
+
+### Kalóriamérleg több tételes naplózás
+
+- a kalóriamérleg mostantól nem napi egyetlen rekorddal dolgozik, hanem külön `calorie_entries` tételekkel
+- egy napon belül több étkezés és több mozgás is külön menthető
+- a napi összesítés, grafikon és átlagok ezekből a tételekből állnak össze
+- a mentés most már új bejegyzést ad hozzá a kiválasztott naphoz, nem felülírja a korábbit
+- bekerült egy napi tétellista is, így rögtön látszik ugyanarra a napra az összes étkezés és mozgás
+- a korábbi `calorie_logs` adatok migrálva lettek az új `calorie_entries` táblába
+
+### Ellenőrzés
+
+- `npm run lint` lefutott
+  - továbbra is csak a két régi `SchoolTimetable.tsx` warning maradt
+- `npm run build` sikeres
