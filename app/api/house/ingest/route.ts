@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
 
-import { getUserIdsForOwner } from '@/app/lib/family';
-import { HouseDeviceRecord, HouseEventRecord, HousePowerState, HousePresenceRecord, HouseReachabilityState } from '@/app/lib/house';
-import { sendPushNotification } from '@/app/lib/server/push';
+import {
+  HouseDeviceRecord,
+  HouseEventRecord,
+  HousePowerState,
+  HousePresenceRecord,
+  HouseReachabilityState,
+} from '@/app/lib/house';
 import { getSupabaseAdminClient } from '@/app/lib/server/supabase-admin';
 
 export const runtime = 'nodejs';
@@ -142,7 +146,7 @@ function buildPowerEvent(device: HouseDeviceRecord, nextState: HousePowerState, 
     subject_name: device.owner_name ?? device.name,
     device_id: device.id,
     severity: 'info',
-    should_notify: true,
+    should_notify: false,
     metadata: {
       slug: device.slug,
       observedAt,
@@ -179,7 +183,7 @@ function buildPresenceTransition(
         subject_name: string | null;
         device_id: string;
         severity: 'important';
-        should_notify: true;
+        should_notify: false;
         metadata: Record<string, unknown>;
       }
     | null = null;
@@ -193,7 +197,7 @@ function buildPresenceTransition(
       subject_name: device.owner_name ?? device.name,
       device_id: device.id,
       severity: 'important',
-      should_notify: true,
+      should_notify: false,
       metadata: {
         slug: device.slug,
         observedAt,
@@ -209,7 +213,7 @@ function buildPresenceTransition(
       subject_name: device.owner_name ?? device.name,
       device_id: device.id,
       severity: 'important',
-      should_notify: true,
+      should_notify: false,
       metadata: {
         slug: device.slug,
         observedAt,
@@ -378,18 +382,6 @@ export async function POST(request: Request) {
           createdEvents.push(insertedEvent as HouseEventRecord);
         }
       }
-    }
-
-    for (const event of createdEvents.filter((item) => item.should_notify && !item.notified_at)) {
-      const targetUserIds = getUserIdsForOwner(event.subject_name);
-      await sendPushNotification({
-        title: event.title,
-        message: event.description ?? event.title,
-        url: '/19811221',
-        userIds: targetUserIds,
-      });
-
-      await supabase.from('house_events').update({ notified_at: new Date().toISOString() }).eq('id', event.id);
     }
 
     return NextResponse.json({

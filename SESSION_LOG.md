@@ -35,9 +35,8 @@
 - létrejött a szerveres push helper:
   - `app/lib/server/push.ts`
 
-### Magyar szövegek / dokumentáció
+### Dokumentáció
 
-- javítva lett néhány hibásan kódolt magyar szöveg
 - frissült a `README.md` az otthon modul és ingest endpoint leírásával
 
 ### Ellenőrzés
@@ -46,32 +45,12 @@
   - maradt 2 régi warning a `SchoolTimetable.tsx` fájlban, nem az új modulból
 - `npm run build` sikeres
 
-### Supabase security megjegyzés
-
-- az új house függvények `search_path` figyelmeztetése javítva lett
-- a régi projektben továbbra is maradtak korábbi, laza RLS policy-k és egy RLS nélküli tábla:
-  - `meal_ratings`
-  - `events`
-  - `meal_planner`
-  - `push_subscriptions`
-  - `recipes`
-  - `rocka_billing`
-  - `school_timetable`
-  - `shopping_list`
-  - `weight_logs`
-
-### Következő jó lépések
-
-1. Android szenzor kliens első verziója a Redmi telefonra
-2. régi Supabase RLS policy-k auditált szigorítása
-3. otthon modul értesítési beállítások családtagonként
-
 ## 2026-03-13 20:30 +01:00
 
 ### Otthon panel UI finomítás
 
 - az `Otthon` szekció átkerült a `RockaBilling` blokk alá
-- az `Otthon` szekció most már lenyíló panelként működik, a meglévő dashboard blokkokkal egységes mintában
+- az `Otthon` szekció lenyíló panelként működik, a meglévő dashboard blokkokkal egységes mintában
 
 ### Ellenőrzés
 
@@ -93,10 +72,43 @@
   - `ping` alapú reachability mérést
   - megfigyelések feltöltését a `POST /api/house/ingest` végpontra
 
-### Fontos korlát
+### Korlát
 
-- ezen a gépen nincs Android SDK / Gradle / Java eszközlánc, ezért az Android projektet itt helyben nem tudtam lefordítani
-- a webes oldal ellenőrzése sikeres volt:
-  - `npm run lint`
-  - `npm run build`
-- a foreground service `dataSync` típusú, ezért újabb Androidokon időkorlátos lehet; ennek kezelésére került be timeout-kezelés és típus-specifikus permission
+- ezen a gépen nincs teljes Android SDK / Gradle / Java eszközlánc a CLI-ben, ezért a build végigellenőrzése részben Android Studio-val történt
+
+## 2026-03-15 18:45 +01:00
+
+### Otthon panel mobilos rendezés
+
+- az `Otthon` blokk mobil fejlécét a többi lenyíló panel mintájához igazítottam
+- a felső sorban maradt a cím és a nyitás/zárás vezérlés, a műveleti gomb külön, tisztábban elkülönül
+- a státusz badge és a `Frissítés` gomb mobilon külön sorba került, így nem csúszik szét a fejléc
+- az eseménylistából kikerült a push értesítéshez kapcsolódó vizuális jelölés
+
+### Push értesítések kivezetése az Otthon modulból
+
+- a `POST /api/house/ingest` feldolgozás már nem küld push értesítést
+- az otthoni események továbbra is bekerülnek a `house_events` táblába
+- az `arrival`, `departure`, `light_on`, `light_off` és reachability események mostantól csak naplózódnak
+
+### Magyar szövegek és kódolás
+
+- az `Otthon` panel felhasználói szövegei UTF-8-ra lettek javítva
+- a `house` helper címkéi és időbélyeg-formázó szövegei is javítva lettek
+- a `SESSION_LOG.md` fájl is újra UTF-8 tartalommal került mentésre
+
+### Android projekt stabilizálás
+
+- bekerült az Android Gradle wrapper a repóba
+- a szükséges Android build javítások commitra készek:
+  - AGP frissítés `8.13.2`-re
+  - Material dependency
+  - kompatibilis téma (`Theme.MaterialComponents.DayNight.NoActionBar`)
+  - `android.suppressUnsupportedCompileSdk=35`
+- a `.gitignore` frissült az Android generált fájlokra
+
+### Ellenőrzés
+
+- `npm run lint` lefutott
+  - továbbra is csak a két régi `SchoolTimetable.tsx` warning maradt
+- `npm run build` sikeres

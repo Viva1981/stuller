@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# android house sensor
+/android-house-sensor/.gradle/
+/android-house-sensor/.idea/
+/android-house-sensor/build/
+/android-house-sensor/app/build/
+/android-house-sensor/local.properties
