@@ -19,12 +19,15 @@ import {
   ChevronUp,
   Flame,
   Loader2,
+  Pencil,
   Plus,
   Save,
   Sparkles,
   Target,
+  Trash2,
   TrendingDown,
   TrendingUp,
+  X,
 } from 'lucide-react';
 
 type CalorieEntry = {
@@ -252,10 +255,12 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
   const [savingEntries, setSavingEntries] = useState(false);
   const [estimatingMeal, setEstimatingMeal] = useState(false);
   const [estimatingExercise, setEstimatingExercise] = useState(false);
+  const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [mealEstimateError, setMealEstimateError] = useState<string | null>(null);
   const [exerciseEstimateError, setExerciseEstimateError] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     const [entriesResult, profileResult, weightResult, presetsResult] = await Promise.all([
@@ -501,6 +506,65 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
     setNote((current) => current || preset.note || `Korábbi sablon: ${preset.label}`);
   };
 
+  const resetEntryForm = () => {
+    setCaloriesIn('');
+    setCaloriesOutExtra('0');
+    setNote('');
+    setQuickMealText('');
+    setQuickExerciseText('');
+    setMealEstimate(null);
+    setExerciseEstimate(null);
+    setMealSourceType('manual');
+    setExerciseSourceType('manual');
+    setEditingEntryId(null);
+  };
+
+  const startEditingEntry = (entry: CalorieEntry) => {
+    setEditingEntryId(entry.id);
+    setDate(entry.entry_date);
+    setNote(entry.note ?? '');
+    setError(null);
+
+    if (entry.entry_type === 'meal') {
+      setCaloriesIn(String(entry.calories));
+      setCaloriesOutExtra('0');
+      setQuickMealText(entry.source_text ?? entry.label ?? '');
+      setQuickExerciseText('');
+      setMealEstimate(null);
+      setExerciseEstimate(null);
+      setMealSourceType(entry.source_type);
+      setExerciseSourceType('manual');
+    } else {
+      setCaloriesIn('');
+      setCaloriesOutExtra(String(entry.calories));
+      setQuickMealText('');
+      setQuickExerciseText(entry.source_text ?? entry.label ?? '');
+      setMealEstimate(null);
+      setExerciseEstimate(null);
+      setMealSourceType('manual');
+      setExerciseSourceType(entry.source_type);
+    }
+  };
+
+  const deleteEntry = async (entryId: string) => {
+    setDeletingEntryId(entryId);
+    setError(null);
+
+    const { error: deleteError } = await supabase.from('calorie_entries').delete().eq('id', entryId);
+    setDeletingEntryId(null);
+
+    if (deleteError) {
+      setError(deleteError.message);
+      return;
+    }
+
+    if (editingEntryId === entryId) {
+      resetEntryForm();
+    }
+
+    await fetchData();
+  };
+
   const handleSaveLog = async () => {
     const normalizedCaloriesIn = parseInt(caloriesIn || '0', 10);
     const normalizedCaloriesOutExtra = parseInt(caloriesOutExtra || '0', 10);
@@ -513,42 +577,75 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
     setSavingEntries(true);
     setError(null);
 
-    const inserts: Array<Omit<CalorieEntry, 'id' | 'created_at' | 'updated_at'>> = [];
+    if (editingEntryId) {
+      const payload =
+        normalizedCaloriesIn > 0
+          ? {
+              entry_date: date,
+              entry_type: 'meal' as const,
+              label: buildEntryLabel(quickMealText, 'Kézi étkezés'),
+              calories: normalizedCaloriesIn,
+              maintenance_calories: effectiveMaintenance,
+              note: note.trim() || null,
+              source_type: mealSourceType,
+              source_text: quickMealText.trim() || null,
+            }
+          : {
+              entry_date: date,
+              entry_type: 'exercise' as const,
+              label: buildEntryLabel(quickExerciseText, 'Kézi mozgás'),
+              calories: normalizedCaloriesOutExtra,
+              maintenance_calories: effectiveMaintenance,
+              note: note.trim() || null,
+              source_type: exerciseSourceType,
+              source_text: quickExerciseText.trim() || null,
+            };
 
-    if (normalizedCaloriesIn > 0) {
-      inserts.push({
-        owner,
-        entry_date: date,
-        entry_type: 'meal',
-        label: buildEntryLabel(quickMealText, 'Kézi étkezés'),
-        calories: normalizedCaloriesIn,
-        maintenance_calories: effectiveMaintenance,
-        note: note.trim() || null,
-        source_type: mealSourceType,
-        source_text: quickMealText.trim() || null,
-      });
-    }
+      const { error: updateError } = await supabase.from('calorie_entries').update(payload).eq('id', editingEntryId);
+      setSavingEntries(false);
 
-    if (normalizedCaloriesOutExtra > 0) {
-      inserts.push({
-        owner,
-        entry_date: date,
-        entry_type: 'exercise',
-        label: buildEntryLabel(quickExerciseText, 'Kézi mozgás'),
-        calories: normalizedCaloriesOutExtra,
-        maintenance_calories: effectiveMaintenance,
-        note: note.trim() || null,
-        source_type: exerciseSourceType,
-        source_text: quickExerciseText.trim() || null,
-      });
-    }
+      if (updateError) {
+        setError(updateError.message);
+        return;
+      }
+    } else {
+      const inserts: Array<Omit<CalorieEntry, 'id' | 'created_at' | 'updated_at'>> = [];
 
-    const { error: insertError } = await supabase.from('calorie_entries').insert(inserts);
-    setSavingEntries(false);
+      if (normalizedCaloriesIn > 0) {
+        inserts.push({
+          owner,
+          entry_date: date,
+          entry_type: 'meal',
+          label: buildEntryLabel(quickMealText, 'Kézi étkezés'),
+          calories: normalizedCaloriesIn,
+          maintenance_calories: effectiveMaintenance,
+          note: note.trim() || null,
+          source_type: mealSourceType,
+          source_text: quickMealText.trim() || null,
+        });
+      }
 
-    if (insertError) {
-      setError(insertError.message);
-      return;
+      if (normalizedCaloriesOutExtra > 0) {
+        inserts.push({
+          owner,
+          entry_date: date,
+          entry_type: 'exercise',
+          label: buildEntryLabel(quickExerciseText, 'Kézi mozgás'),
+          calories: normalizedCaloriesOutExtra,
+          maintenance_calories: effectiveMaintenance,
+          note: note.trim() || null,
+          source_type: exerciseSourceType,
+          source_text: quickExerciseText.trim() || null,
+        });
+      }
+
+      const { error: insertError } = await supabase.from('calorie_entries').insert(inserts);
+      setSavingEntries(false);
+
+      if (insertError) {
+        setError(insertError.message);
+        return;
+      }
     }
 
     if (quickMealText.trim() && normalizedCaloriesIn > 0) {
@@ -559,15 +656,7 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
       await upsertPreset(owner, 'exercise', quickExerciseText, normalizedCaloriesOutExtra, note.trim() || undefined);
     }
 
-    setCaloriesIn('');
-    setCaloriesOutExtra('0');
-    setNote('');
-    setQuickMealText('');
-    setQuickExerciseText('');
-    setMealEstimate(null);
-    setExerciseEstimate(null);
-    setMealSourceType('manual');
-    setExerciseSourceType('manual');
+    resetEntryForm();
     await fetchData();
   };
 
@@ -721,12 +810,21 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
                     <input type="number" placeholder="Extra mozgás" value={caloriesOutExtra} onChange={(event) => setCaloriesOutExtra(event.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 p-3 font-bold text-white outline-none placeholder:text-white/20" />
                     <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 p-3 text-sm font-bold uppercase tracking-wide text-white/80 outline-none" />
                   </div>
+                  {editingEntryId && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs text-amber-100">
+                      <span>Szerkesztési mód: a mentés most a kiválasztott tételt frissíti.</span>
+                      <button onClick={resetEntryForm} className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 font-black uppercase tracking-widest text-white/80 hover:bg-white/10">
+                        <X size={14} />
+                        Mégse
+                      </button>
+                    </div>
+                  )}
                   <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-xs text-white/60">
-                    Egy napon belül több külön tételt is rögzíthetsz. A mentés most új étkezés- és/vagy mozgásbejegyzést ad hozzá a kiválasztott dátumhoz.
+                    Egy napon belül több külön tételt is rögzíthetsz. Ha a listából szerkesztesz egy elemet, a mentés azt az egy tételt módosítja.
                   </div>
                   <div className="flex gap-2 rounded-2xl border border-white/5 bg-black/20 p-1.5">
                     <input type="text" placeholder="Megjegyzés opcionálisan, pl. étterem, futás, lábnap" value={note} onChange={(event) => setNote(event.target.value)} className="flex-1 bg-transparent px-3 text-sm text-white outline-none placeholder:text-white/20" />
-                    <button onClick={handleSaveLog} disabled={savingEntries || !effectiveMaintenance || (parseInt(caloriesIn || '0', 10) <= 0 && parseInt(caloriesOutExtra || '0', 10) <= 0)} className="flex w-12 items-center justify-center rounded-xl bg-emerald-500 text-black transition-colors hover:bg-emerald-400 disabled:opacity-50">{savingEntries ? <Loader2 size={18} className="animate-spin" /> : <Plus size={20} />}</button>
+                    <button onClick={handleSaveLog} disabled={savingEntries || !effectiveMaintenance || (parseInt(caloriesIn || '0', 10) <= 0 && parseInt(caloriesOutExtra || '0', 10) <= 0)} className="inline-flex min-w-[124px] items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 text-sm font-black uppercase tracking-widest text-black transition-colors hover:bg-emerald-400 disabled:opacity-50">{savingEntries ? <Loader2 size={18} className="animate-spin" /> : editingEntryId ? <Save size={18} /> : <Plus size={18} />}{editingEntryId ? 'Mentés' : 'Hozzáadás'}</button>
                   </div>
                 </div>
 
@@ -752,8 +850,16 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
                             </div>
                             {entry.note && <div className="mt-1 text-xs text-white/60">{entry.note}</div>}
                           </div>
-                          <div className={`rounded-xl px-3 py-2 text-sm font-black ${entry.entry_type === 'meal' ? 'bg-amber-500/15 text-amber-200' : 'bg-sky-500/15 text-sky-200'}`}>
-                            {entry.entry_type === 'meal' ? '+' : '-'}{entry.calories} kcal
+                          <div className="flex items-center gap-2 self-end sm:self-center">
+                            <button onClick={() => startEditingEntry(entry)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 text-white/70 transition-colors hover:bg-white/10 hover:text-white" aria-label="Tétel szerkesztése">
+                              <Pencil size={16} />
+                            </button>
+                            <button onClick={() => void deleteEntry(entry.id)} disabled={deletingEntryId === entry.id} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-rose-500/20 text-rose-200 transition-colors hover:bg-rose-500/10 disabled:opacity-50" aria-label="Tétel törlése">
+                              {deletingEntryId === entry.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                            </button>
+                            <div className={`rounded-xl px-3 py-2 text-sm font-black ${entry.entry_type === 'meal' ? 'bg-amber-500/15 text-amber-200' : 'bg-sky-500/15 text-sky-200'}`}>
+                              {entry.entry_type === 'meal' ? '+' : '-'}{entry.calories} kcal
+                            </div>
                           </div>
                         </div>
                       ))}

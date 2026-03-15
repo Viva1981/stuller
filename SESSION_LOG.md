@@ -252,3 +252,18 @@
 - `npm run lint` lefutott
   - továbbra is csak a két régi `SchoolTimetable.tsx` warning maradt
 - `npm run build` sikeres
+
+## 2026-03-15 22:35 +01:00
+
+### Kalóriatétel szerkesztés és törlés
+
+- a napi tétellistából most már egy korábbi étkezés vagy mozgás betölthető szerkesztésre
+- szerkesztéskor az űrlap a kiválasztott tétel adatait tölti be, és a mentés azt az egy bejegyzést frissíti
+- bekerült a tétel törlése is közvetlenül a napi listában
+- a szerkesztési mód külön vizuális jelzést kapott, és egy gombbal megszakítható
+
+### Ellenőrzés
+
+- `npm run lint` lefutott
+  - továbbra is csak a két régi `SchoolTimetable.tsx` warning maradt
+- `npm run build` sikeres
