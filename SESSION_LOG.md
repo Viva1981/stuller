@@ -267,3 +267,16 @@
 - `npm run lint` lefutott
   - továbbra is csak a két régi `SchoolTimetable.tsx` warning maradt
 - `npm run build` sikeres
+
+## 2026-03-15 22:45 +01:00
+
+### Kalóriamérleg mobil finomítás
+
+- az extra mozgás mező alapértéke most már üres, nem zavar be egy előre beírt `0`
+- a megjegyzés + mentés sáv mobilon egymás alá törik, így a `Hozzáadás` gomb nem lóg ki keskeny kijelzőn
+
+### Ellenőrzés
+
+- `npm run lint` lefutott
+  - továbbra is csak a két régi `SchoolTimetable.tsx` warning maradt
+- `npm run build` sikeres

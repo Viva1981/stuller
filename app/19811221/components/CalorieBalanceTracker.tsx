@@ -238,7 +238,7 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
   const [fallbackMaintenance, setFallbackMaintenance] = useState('');
 
   const [caloriesIn, setCaloriesIn] = useState('');
-  const [caloriesOutExtra, setCaloriesOutExtra] = useState('0');
+  const [caloriesOutExtra, setCaloriesOutExtra] = useState('');
   const [note, setNote] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [range, setRange] = useState<RangeValue>('3M');
@@ -508,7 +508,7 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
 
   const resetEntryForm = () => {
     setCaloriesIn('');
-    setCaloriesOutExtra('0');
+    setCaloriesOutExtra('');
     setNote('');
     setQuickMealText('');
     setQuickExerciseText('');
@@ -527,7 +527,7 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
 
     if (entry.entry_type === 'meal') {
       setCaloriesIn(String(entry.calories));
-      setCaloriesOutExtra('0');
+      setCaloriesOutExtra('');
       setQuickMealText(entry.source_text ?? entry.label ?? '');
       setQuickExerciseText('');
       setMealEstimate(null);
@@ -822,9 +822,9 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
                   <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-xs text-white/60">
                     Egy napon belül több külön tételt is rögzíthetsz. Ha a listából szerkesztesz egy elemet, a mentés azt az egy tételt módosítja.
                   </div>
-                  <div className="flex gap-2 rounded-2xl border border-white/5 bg-black/20 p-1.5">
-                    <input type="text" placeholder="Megjegyzés opcionálisan, pl. étterem, futás, lábnap" value={note} onChange={(event) => setNote(event.target.value)} className="flex-1 bg-transparent px-3 text-sm text-white outline-none placeholder:text-white/20" />
-                    <button onClick={handleSaveLog} disabled={savingEntries || !effectiveMaintenance || (parseInt(caloriesIn || '0', 10) <= 0 && parseInt(caloriesOutExtra || '0', 10) <= 0)} className="inline-flex min-w-[124px] items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 text-sm font-black uppercase tracking-widest text-black transition-colors hover:bg-emerald-400 disabled:opacity-50">{savingEntries ? <Loader2 size={18} className="animate-spin" /> : editingEntryId ? <Save size={18} /> : <Plus size={18} />}{editingEntryId ? 'Mentés' : 'Hozzáadás'}</button>
+                  <div className="flex flex-col gap-2 rounded-2xl border border-white/5 bg-black/20 p-1.5 sm:flex-row">
+                    <input type="text" placeholder="Megjegyzés opcionálisan, pl. étterem, futás, lábnap" value={note} onChange={(event) => setNote(event.target.value)} className="min-w-0 flex-1 bg-transparent px-3 py-3 text-sm text-white outline-none placeholder:text-white/20" />
+                    <button onClick={handleSaveLog} disabled={savingEntries || !effectiveMaintenance || (parseInt(caloriesIn || '0', 10) <= 0 && parseInt(caloriesOutExtra || '0', 10) <= 0)} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-black uppercase tracking-widest text-black transition-colors hover:bg-emerald-400 disabled:opacity-50 sm:min-w-[124px] sm:w-auto">{savingEntries ? <Loader2 size={18} className="animate-spin" /> : editingEntryId ? <Save size={18} /> : <Plus size={18} />}{editingEntryId ? 'Mentés' : 'Hozzáadás'}</button>
                   </div>
                 </div>
 
