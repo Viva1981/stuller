@@ -112,3 +112,41 @@
 - `npm run lint` lefutott
   - továbbra is csak a két régi `SchoolTimetable.tsx` warning maradt
 - `npm run build` sikeres
+
+## 2026-03-15 20:05 +01:00
+
+### Kalóriamérleg MVP
+
+- új Supabase tábla került be: `calorie_logs`
+- az új tábla owner + date alapon egyedi naplózást támogat
+- bekerült az első `CalorieBalanceTracker` komponens a személyes modulok közé
+- a modul tudja:
+  - napi kalóriacél rögzítését
+  - bevitt kalória rögzítését
+  - extra mozgás / elégetett kalória rögzítését
+  - napi egyenleg számítását
+  - egyszerű státuszt mutatni: deficitben / nagyjából szinten / többletben
+  - időszakos trendgrafikont mutatni
+  - átlagolt összegzést mutatni a kiválasztott időszakra
+- a napi cél az utolsó mentett érték alapján automatikusan előtöltődik, hogy kevesebb legyen a napi adatbevitel
+
+### Bekötés a személyes oldalakra
+
+- a modul bekerült mind a négy személyes oldalra:
+  - `Zsolt`
+  - `Andrea`
+  - `Adél`
+  - `Zsombor`
+- minden oldal saját `owner` alapján a saját adatait látja, ugyanúgy, mint a súlynapló
+
+### MVP döntések
+
+- a Gemini API most még szándékosan nincs bekötve
+- első körben a gyors, stabil, kézi rögzítés került bevezetésre
+- a következő természetes bővítés lehet egy AI-segített szöveges étkezésbevitel, de csak az alapmodul stabil használata után
+
+### Ellenőrzés
+
+- `npm run lint` lefutott
+  - továbbra is csak a két régi `SchoolTimetable.tsx` warning maradt
+- `npm run build` sikeres
