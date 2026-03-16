@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 
 import { supabase } from './supabase';
+import { buildAppUrl } from './lib/site';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -31,7 +32,7 @@ export default function LoginPage() {
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : '',
+        redirectTo: buildAppUrl('/auth/callback'),
       },
     });
   };

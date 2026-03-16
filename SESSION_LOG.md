@@ -296,3 +296,18 @@
 - `npm run lint` lefutott
   - továbbra is csak a két régi `SchoolTimetable.tsx` warning maradt
 - `npm run build` sikeres
+
+## 2026-03-16 19:25 +01:00
+
+### Kanonikus domain és auth session stabilizálás
+
+- bekerült egy központi kanonikus app URL helper (`stuller.vercel.app` fallbackkel)
+- a Google OAuth login most már mindig a kanonikus domain callback URL-jére tér vissza
+- bekerült egy kliensoldali kanonikus redirect is, ami preview Vercel domainről automatikusan visszairányít a fix app domainre
+- ez azért fontos, mert a Supabase session originhez kötött, és a preview URL másik originnek számít
+
+### Ellenőrzés
+
+- `npm run lint` lefutott
+  - továbbra is csak a két régi `SchoolTimetable.tsx` warning maradt
+- `npm run build` sikeres
