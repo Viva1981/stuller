@@ -280,3 +280,19 @@
 - `npm run lint` lefutott
   - továbbra is csak a két régi `SchoolTimetable.tsx` warning maradt
 - `npm run build` sikeres
+
+## 2026-03-16 19:10 +01:00
+
+### Google login session javítás
+
+- a Google OAuth belépés most már külön `/auth/callback` oldalon véglegesíti a sessiont
+- a callback oldalon megtörténik a `code` cseréje valódi Supabase sessionre
+- a fő login oldal most belépett felhasználónál automatikusan továbbdob a dashboardra
+- a kliens oldali Supabase auth beállítások expliciten bekapcsolják a session megőrzést és az URL-ből való felismerést
+- ez a javítás a webes és a PWA használatnál is azt célozza, hogy ne kelljen minden megnyitásnál újra Google-lel belépni
+
+### Ellenőrzés
+
+- `npm run lint` lefutott
+  - továbbra is csak a két régi `SchoolTimetable.tsx` warning maradt
+- `npm run build` sikeres

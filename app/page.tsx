@@ -1,18 +1,48 @@
 "use client";
 
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 
 import { supabase } from './supabase';
 
 export default function LoginPage() {
+  const router = useRouter();
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  useEffect(() => {
+    const checkSession = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user) {
+        router.replace('/19811221');
+        return;
+      }
+
+      setCheckingSession(false);
+    };
+
+    void checkSession();
+  }, [router]);
+
   const handleLogin = async () => {
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: typeof window !== 'undefined' ? window.location.origin + '/19811221' : '',
+        redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : '',
       },
     });
   };
+
+  if (checkingSession) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-950 p-6">
+        <div className="h-8 w-8 animate-spin rounded-full border-t-2 border-emerald-500" />
+      </main>
+    );
+  }
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-slate-950 p-6">
