@@ -352,3 +352,18 @@
 - `npm run lint` lefutott
   - továbbra is csak a két régi `SchoolTimetable.tsx` warning maradt
 - `npm run build` sikeres
+
+## 2026-03-22 21:55 +01:00
+
+### Kalóriamérleg mobilos fejléc és zárt alapállapot
+
+- a kalóriamérleg összes lenyíló része alapból zárt állapotból indul
+- a `Gemini gyors étkezés`, `Gemini gyors mozgás`, kedvencek és alapadatok blokkok első betöltéskor nem nyílnak ki automatikusan
+- a `Napi tételek` mobilos fejlécének elrendezése átalakult, hogy keskeny kijelzőn ne csússzanak egymásra a dátum, a státusz és a navigációs elemek
+- a fejléc középső tartalma mobilon függőlegesebb, olvashatóbb tördelést kapott, így a napi státusz badge nem nyomja szét a dátum sort
+
+### Ellenőrzés
+
+- `npm run lint` lefutott
+  - továbbra is csak a két régi `SchoolTimetable.tsx` warning maradt
+- `npm run build` sikeres

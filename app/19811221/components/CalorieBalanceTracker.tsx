@@ -276,10 +276,10 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const todayDate = useMemo(() => new Date().toISOString().split('T')[0], []);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [isMealOpen, setIsMealOpen] = useState(true);
+  const [isMealOpen, setIsMealOpen] = useState(false);
   const [isExerciseOpen, setIsExerciseOpen] = useState(false);
-  const [isFavoriteMealsOpen, setIsFavoriteMealsOpen] = useState(true);
-  const [isFavoriteExercisesOpen, setIsFavoriteExercisesOpen] = useState(true);
+  const [isFavoriteMealsOpen, setIsFavoriteMealsOpen] = useState(false);
+  const [isFavoriteExercisesOpen, setIsFavoriteExercisesOpen] = useState(false);
   const [favoritePresetKeys, setFavoritePresetKeys] = useState<string[]>([]);
 
   const fetchData = useCallback(async () => {
@@ -1035,19 +1035,21 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
                 </div>
 
                 <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
-                  <div className="mb-3 flex items-center gap-2">
+                  <div className="mb-3 flex items-start gap-2 sm:items-center">
                     <button onClick={() => setDate((current) => shiftDateByDays(current, -1))} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-black/20 text-white/70 transition-colors hover:bg-white/10 hover:text-white">
                       <ChevronLeft size={16} />
                     </button>
-                    <div className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
-                      <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-black/20 px-3 py-3">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-w-0">
                           <div className="text-[10px] font-black uppercase tracking-widest text-white/40">Napi tételek</div>
-                          <div className="mt-1 truncate text-sm text-white/70">{format(parseISO(date), 'yyyy. MMMM d.', { locale: hu })}</div>
+                          <div className="mt-1 text-sm text-white/70">{format(parseISO(date), 'yyyy. MMMM d.', { locale: hu })}</div>
                         </div>
-                        <div className={`rounded-xl border px-3 py-2 text-right text-[10px] font-black tracking-widest ${selectedDateStatus.tone}`}>
-                          <div>{selectedDateStatus.label}</div>
-                          <div className="mt-1 text-xs">{formatBalance(selectedDateBalance)}</div>
+                        <div className={`inline-flex self-start rounded-xl border px-3 py-2 text-left text-[10px] font-black tracking-widest sm:text-right ${selectedDateStatus.tone}`}>
+                          <div>
+                            <div>{selectedDateStatus.label}</div>
+                            <div className="mt-1 text-xs">{formatBalance(selectedDateBalance)}</div>
+                          </div>
                         </div>
                       </div>
                     </div>
