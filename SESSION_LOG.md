@@ -367,3 +367,22 @@
 - `npm run lint` lefutott
   - továbbra is csak a két régi `SchoolTimetable.tsx` warning maradt
 - `npm run build` sikeres
+
+## 2026-03-22 22:35 +01:00
+
+### Kalóriamérleg: Supabase-kedvencek, időpont és napi fókusz
+
+- a kalóriamérleg kedvenc sablonjai már nem localStorage-ben élnek, hanem a meglévő `calorie_presets` Supabase rekordok metaadatában
+- ezzel a kedvencek owner-alapon a felhasználóhoz kötődnek, és ugyanazon fiókkal több eszközről is megmaradnak
+- a napi tételekhez bekerült külön időpont megadása (`HH:mm`), ami a meglévő `calorie_entries` rekordok metaadatában mentődik
+- a napi tétellista időpont szerint rendeződik, és a soroknál megjelenik a mentett idő is
+- a rögzített tételek megjegyzései most már a tisztított, felhasználói szöveget mutatják, nem a háttér-metaadatot
+- bekerült egy külön felső `Mai fókusz` blokk, ami megmutatja, hogy ma még mennyi fér bele vagy mennyivel lett túllépve a napi keret
+- a fókuszblokk külön mutatja a napi alap, bevitt és mozgási adatokat is, hogy ne kelljen azonnal a napi tételek láblécéhez lemenni
+- a megoldás szándékosan a meglévő Supabase táblákra épül, így ehhez a körhöz nem kellett külön séma-migráció
+
+### Ellenőrzés
+
+- `npm run lint` lefutott
+  - továbbra is csak a két régi `SchoolTimetable.tsx` warning maradt
+- `npm run build` sikeres

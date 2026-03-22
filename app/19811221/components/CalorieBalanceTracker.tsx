@@ -100,6 +100,11 @@ type EstimateMode = 'meal' | 'exercise';
 type RangeValue = '1M' | '3M' | '6M' | '1Y' | 'ALL';
 type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
 type EntrySourceType = 'manual' | 'ai' | 'preset';
+type StoredMetaPayload = {
+  text?: string;
+  time?: string;
+  favorite?: boolean;
+};
 
 const RANGES: Array<{ label: string; value: RangeValue }> = [
   { label: '1H', value: '1M' },
@@ -116,6 +121,7 @@ const ACTIVITY_LEVEL_OPTIONS: Array<{ value: ActivityLevel; label: string; multi
   { value: 'active', label: 'Aktív', multiplier: 1.725 },
   { value: 'very_active', label: 'Nagyon aktív', multiplier: 1.9 },
 ];
+const META_PREFIX = '__stuller_meta__:';
 
 function getBalance(log: Pick<DailyCalorieLog, 'calorie_target' | 'calories_in' | 'calories_out_extra'>) {
   return log.calories_in - log.calories_out_extra - log.calorie_target;
@@ -147,6 +153,69 @@ function getStatus(balance: number) {
 
 function formatBalance(balance: number) {
   return `${balance > 0 ? '+' : ''}${balance} kcal`;
+}
+
+function getCurrentLocalTime() {
+  return new Intl.DateTimeFormat('hu-HU', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Europe/Budapest',
+  }).format(new Date());
+}
+
+function parseStoredMeta(note: string | null) {
+  if (!note) {
+    return { text: '', time: null, favorite: false };
+  }
+
+  if (!note.startsWith(META_PREFIX)) {
+    return { text: note, time: null, favorite: false };
+  }
+
+  try {
+    const payload = JSON.parse(note.slice(META_PREFIX.length)) as StoredMetaPayload;
+    return {
+      text: typeof payload.text === 'string' ? payload.text : '',
+      time: typeof payload.time === 'string' ? payload.time : null,
+      favorite: Boolean(payload.favorite),
+    };
+  } catch {
+    return { text: note, time: null, favorite: false };
+  }
+}
+
+function buildStoredMetaNote(meta: StoredMetaPayload) {
+  if (!meta.text && !meta.time && !meta.favorite) {
+    return null;
+  }
+
+  return `${META_PREFIX}${JSON.stringify({
+    ...(meta.text ? { text: meta.text } : {}),
+    ...(meta.time ? { time: meta.time } : {}),
+    ...(meta.favorite ? { favorite: true } : {}),
+  })}`;
+}
+
+function getPresetFavorite(preset: CaloriePreset) {
+  return parseStoredMeta(preset.note).favorite;
+}
+
+function getPresetNoteText(preset: CaloriePreset) {
+  return parseStoredMeta(preset.note).text;
+}
+
+function getEntryNoteText(entry: CalorieEntry) {
+  return parseStoredMeta(entry.note).text;
+}
+
+function getEntryTime(entry: CalorieEntry) {
+  const storedTime = parseStoredMeta(entry.note).time;
+  if (storedTime) {
+    return storedTime;
+  }
+
+  return format(parseISO(entry.created_at), 'HH:mm');
 }
 
 function getActivityMultiplier(activityLevel?: ActivityLevel | null) {
@@ -214,30 +283,6 @@ function shiftDateByDays(date: string, days: number) {
   return value.toISOString().split('T')[0];
 }
 
-function getPresetKey(preset: Pick<CaloriePreset, 'preset_type' | 'label'>) {
-  return `${preset.preset_type}:${preset.label}`;
-}
-
-async function upsertPreset(owner: string, presetType: EstimateMode, sourceText: string, calories: number, note?: string) {
-  const label = buildPresetLabel(sourceText);
-  if (!label || !calories) {
-    return;
-  }
-
-  await supabase.from('calorie_presets').upsert(
-    {
-      owner,
-      preset_type: presetType,
-      label,
-      estimated_calories: calories,
-      source_text: sourceText,
-      note: note || null,
-      last_used_at: new Date().toISOString(),
-    },
-    { onConflict: 'owner,preset_type,label' }
-  );
-}
-
 export default function CalorieBalanceTracker({ owner }: { owner: string }) {
   const [entries, setEntries] = useState<CalorieEntry[]>([]);
   const [profile, setProfile] = useState<CalorieProfile | null>(null);
@@ -254,6 +299,7 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
   const [caloriesOutExtra, setCaloriesOutExtra] = useState('');
   const [note, setNote] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [entryTime, setEntryTime] = useState(getCurrentLocalTime());
   const [range, setRange] = useState<RangeValue>('3M');
 
   const [quickMealText, setQuickMealText] = useState('');
@@ -280,7 +326,6 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
   const [isExerciseOpen, setIsExerciseOpen] = useState(false);
   const [isFavoriteMealsOpen, setIsFavoriteMealsOpen] = useState(false);
   const [isFavoriteExercisesOpen, setIsFavoriteExercisesOpen] = useState(false);
-  const [favoritePresetKeys, setFavoritePresetKeys] = useState<string[]>([]);
 
   const fetchData = useCallback(async () => {
     const [entriesResult, profileResult, weightResult, presetsResult] = await Promise.all([
@@ -331,25 +376,6 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
     return () => clearTimeout(initTimer);
   }, [fetchData]);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    const stored = window.localStorage.getItem(`calorie-preset-favorites:${owner}`);
-    if (!stored) {
-      setFavoritePresetKeys([]);
-      return;
-    }
-
-    try {
-      const parsed = JSON.parse(stored) as unknown;
-      setFavoritePresetKeys(Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []);
-    } catch {
-      setFavoritePresetKeys([]);
-    }
-  }, [owner]);
-
   const effectiveMaintenance = useMemo(() => calculateMaintenance(latestWeight, profile), [latestWeight, profile]);
   const isCalculatedMaintenance = Boolean(
     latestWeight && profile?.height_cm && profile?.age_years && profile?.sex && profile?.activity_level
@@ -391,7 +417,13 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
     () =>
       entries
         .filter((entry) => entry.entry_date === date)
-        .sort((left, right) => left.created_at.localeCompare(right.created_at)),
+        .sort((left, right) => {
+          const timeDiff = getEntryTime(left).localeCompare(getEntryTime(right));
+          if (timeDiff !== 0) {
+            return timeDiff;
+          }
+          return left.created_at.localeCompare(right.created_at);
+        }),
     [date, entries]
   );
 
@@ -417,39 +449,82 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
   const selectedDateStatus = getStatus(selectedDateBalance);
   const sortedMealPresets = useMemo(() => {
     return [...mealPresets].sort((left, right) => {
-      const leftFavorite = favoritePresetKeys.includes(getPresetKey(left)) ? 1 : 0;
-      const rightFavorite = favoritePresetKeys.includes(getPresetKey(right)) ? 1 : 0;
+      const leftFavorite = getPresetFavorite(left) ? 1 : 0;
+      const rightFavorite = getPresetFavorite(right) ? 1 : 0;
       if (leftFavorite !== rightFavorite) {
         return rightFavorite - leftFavorite;
       }
       return right.last_used_at.localeCompare(left.last_used_at);
     });
-  }, [favoritePresetKeys, mealPresets]);
+  }, [mealPresets]);
   const sortedExercisePresets = useMemo(() => {
     return [...exercisePresets].sort((left, right) => {
-      const leftFavorite = favoritePresetKeys.includes(getPresetKey(left)) ? 1 : 0;
-      const rightFavorite = favoritePresetKeys.includes(getPresetKey(right)) ? 1 : 0;
+      const leftFavorite = getPresetFavorite(left) ? 1 : 0;
+      const rightFavorite = getPresetFavorite(right) ? 1 : 0;
       if (leftFavorite !== rightFavorite) {
         return rightFavorite - leftFavorite;
       }
       return right.last_used_at.localeCompare(left.last_used_at);
     });
-  }, [exercisePresets, favoritePresetKeys]);
+  }, [exercisePresets]);
   const favoriteMealPresets = useMemo(
-    () => sortedMealPresets.filter((preset) => favoritePresetKeys.includes(getPresetKey(preset))),
-    [favoritePresetKeys, sortedMealPresets]
+    () => sortedMealPresets.filter((preset) => getPresetFavorite(preset)),
+    [sortedMealPresets]
   );
   const regularMealPresets = useMemo(
-    () => sortedMealPresets.filter((preset) => !favoritePresetKeys.includes(getPresetKey(preset))),
-    [favoritePresetKeys, sortedMealPresets]
+    () => sortedMealPresets.filter((preset) => !getPresetFavorite(preset)),
+    [sortedMealPresets]
   );
   const favoriteExercisePresets = useMemo(
-    () => sortedExercisePresets.filter((preset) => favoritePresetKeys.includes(getPresetKey(preset))),
-    [favoritePresetKeys, sortedExercisePresets]
+    () => sortedExercisePresets.filter((preset) => getPresetFavorite(preset)),
+    [sortedExercisePresets]
   );
   const regularExercisePresets = useMemo(
-    () => sortedExercisePresets.filter((preset) => !favoritePresetKeys.includes(getPresetKey(preset))),
-    [favoritePresetKeys, sortedExercisePresets]
+    () => sortedExercisePresets.filter((preset) => !getPresetFavorite(preset)),
+    [sortedExercisePresets]
+  );
+  const todayLog = useMemo(() => {
+    return dailyLogs.find((log) => log.date === todayDate) ?? {
+      date: todayDate,
+      calorie_target: effectiveMaintenance,
+      calories_in: 0,
+      calories_out_extra: 0,
+      balance: 0 - effectiveMaintenance,
+      entries: [],
+    };
+  }, [dailyLogs, effectiveMaintenance, todayDate]);
+  const todayBalance = getBalance(todayLog);
+  const todayStatus = getStatus(todayBalance);
+  const remainingToday = Math.max(0, -todayBalance);
+
+  const upsertPreset = useCallback(
+    async (presetType: EstimateMode, sourceText: string, calories: number, nextNote?: string) => {
+      const label = buildPresetLabel(sourceText);
+      if (!label || !calories) {
+        return;
+      }
+
+      const currentPresets = presetType === 'meal' ? mealPresets : exercisePresets;
+      const existingPreset = currentPresets.find((preset) => preset.label === label);
+      const favorite = existingPreset ? getPresetFavorite(existingPreset) : false;
+
+      await supabase.from('calorie_presets').upsert(
+        {
+          owner,
+          preset_type: presetType,
+          label,
+          estimated_calories: calories,
+          source_text: sourceText,
+          note: buildStoredMetaNote({
+            text: nextNote?.trim() || '',
+            favorite,
+          }),
+          last_used_at: new Date().toISOString(),
+        },
+        { onConflict: 'owner,preset_type,label' }
+      );
+    },
+    [exercisePresets, mealPresets, owner]
   );
 
   const saveProfile = async () => {
@@ -585,6 +660,7 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
   };
 
   const applyPreset = (preset: CaloriePreset) => {
+    const presetNote = getPresetNoteText(preset);
     if (preset.preset_type === 'meal') {
       setMealSourceType('preset');
       setQuickMealText(preset.source_text || preset.label);
@@ -595,26 +671,34 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
       setCaloriesOutExtra(String(preset.estimated_calories));
     }
 
-    setNote((current) => current || preset.note || `Korábbi sablon: ${preset.label}`);
+    setNote((current) => current || presetNote || `Korábbi sablon: ${preset.label}`);
   };
 
-  const toggleFavoritePreset = (preset: CaloriePreset) => {
-    const presetKey = getPresetKey(preset);
-    const nextFavoriteKeys = favoritePresetKeys.includes(presetKey)
-      ? favoritePresetKeys.filter((key) => key !== presetKey)
-      : [presetKey, ...favoritePresetKeys];
+  const toggleFavoritePreset = async (preset: CaloriePreset) => {
+    const parsed = parseStoredMeta(preset.note);
+    const { error: presetError } = await supabase
+      .from('calorie_presets')
+      .update({
+        note: buildStoredMetaNote({
+          text: parsed.text,
+          favorite: !parsed.favorite,
+        }),
+      })
+      .eq('id', preset.id);
 
-    setFavoritePresetKeys(nextFavoriteKeys);
-
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(`calorie-preset-favorites:${owner}`, JSON.stringify(nextFavoriteKeys));
+    if (presetError) {
+      setError(presetError.message);
+      return;
     }
+
+    await fetchData();
   };
 
   const resetEntryForm = () => {
     setCaloriesIn('');
     setCaloriesOutExtra('');
     setNote('');
+    setEntryTime(getCurrentLocalTime());
     setQuickMealText('');
     setQuickExerciseText('');
     setMealEstimate(null);
@@ -625,9 +709,11 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
   };
 
   const startEditingEntry = (entry: CalorieEntry) => {
+    const parsedNote = parseStoredMeta(entry.note);
     setEditingEntryId(entry.id);
     setDate(entry.entry_date);
-    setNote(entry.note ?? '');
+    setEntryTime(parsedNote.time ?? getEntryTime(entry));
+    setNote(parsedNote.text);
     setError(null);
 
     if (entry.entry_type === 'meal') {
@@ -675,7 +761,7 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
     const normalizedCaloriesOutExtra = parseInt(caloriesOutExtra || '0', 10);
 
     if (!effectiveMaintenance || !date || (normalizedCaloriesIn <= 0 && normalizedCaloriesOutExtra <= 0)) {
-      setError('A mentéshez kell számolt vagy tartalék alap kalória, dátum, és legalább étkezés vagy mozgás adat.');
+      setError('A mentéshez kell számolt napi alap, dátum, és legalább étkezés vagy mozgás adat.');
       return;
     }
 
@@ -691,7 +777,10 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
               label: buildEntryLabel(quickMealText, 'Kézi étkezés'),
               calories: normalizedCaloriesIn,
               maintenance_calories: effectiveMaintenance,
-              note: note.trim() || null,
+              note: buildStoredMetaNote({
+                text: note.trim(),
+                time: entryTime,
+              }),
               source_type: mealSourceType,
               source_text: quickMealText.trim() || null,
             }
@@ -701,7 +790,10 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
               label: buildEntryLabel(quickExerciseText, 'Kézi mozgás'),
               calories: normalizedCaloriesOutExtra,
               maintenance_calories: effectiveMaintenance,
-              note: note.trim() || null,
+              note: buildStoredMetaNote({
+                text: note.trim(),
+                time: entryTime,
+              }),
               source_type: exerciseSourceType,
               source_text: quickExerciseText.trim() || null,
             };
@@ -724,7 +816,10 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
           label: buildEntryLabel(quickMealText, 'Kézi étkezés'),
           calories: normalizedCaloriesIn,
           maintenance_calories: effectiveMaintenance,
-          note: note.trim() || null,
+          note: buildStoredMetaNote({
+            text: note.trim(),
+            time: entryTime,
+          }),
           source_type: mealSourceType,
           source_text: quickMealText.trim() || null,
         });
@@ -738,7 +833,10 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
           label: buildEntryLabel(quickExerciseText, 'Kézi mozgás'),
           calories: normalizedCaloriesOutExtra,
           maintenance_calories: effectiveMaintenance,
-          note: note.trim() || null,
+          note: buildStoredMetaNote({
+            text: note.trim(),
+            time: entryTime,
+          }),
           source_type: exerciseSourceType,
           source_text: quickExerciseText.trim() || null,
         });
@@ -754,11 +852,11 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
     }
 
     if (quickMealText.trim() && normalizedCaloriesIn > 0) {
-      await upsertPreset(owner, 'meal', quickMealText, normalizedCaloriesIn, note.trim() || undefined);
+      await upsertPreset('meal', quickMealText, normalizedCaloriesIn, note.trim() || undefined);
     }
 
     if (quickExerciseText.trim() && normalizedCaloriesOutExtra > 0) {
-      await upsertPreset(owner, 'exercise', quickExerciseText, normalizedCaloriesOutExtra, note.trim() || undefined);
+      await upsertPreset('exercise', quickExerciseText, normalizedCaloriesOutExtra, note.trim() || undefined);
     }
 
     resetEntryForm();
@@ -868,6 +966,29 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
                 </AnimatePresence>
               </div>
 
+              <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/8 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div className="text-[10px] font-black uppercase tracking-widest text-emerald-200/60">Mai fókusz</div>
+                    <div className="mt-1 text-xl font-black text-white">
+                      {todayBalance <= 0 ? 'Ma még ennyi fér bele' : 'Ma ennyivel lépted túl'}
+                    </div>
+                    <div className="mt-2 text-3xl font-black text-emerald-300">
+                      {todayBalance <= 0 ? `${remainingToday} kcal` : `${todayBalance} kcal`}
+                    </div>
+                  </div>
+                  <div className={`inline-flex items-center gap-2 self-start rounded-xl border px-3 py-2 text-xs font-black uppercase tracking-widest ${todayStatus.tone}`}>
+                    <todayStatus.icon size={14} />
+                    {todayStatus.label}
+                  </div>
+                </div>
+                <div className="mt-3 grid gap-2 text-xs text-white/60 sm:grid-cols-3">
+                  <div className="rounded-xl border border-white/5 bg-black/20 px-3 py-2">Napi alap: <span className="font-black text-white">{todayLog.calorie_target} kcal</span></div>
+                  <div className="rounded-xl border border-white/5 bg-black/20 px-3 py-2">Bevitt: <span className="font-black text-white">{todayLog.calories_in} kcal</span></div>
+                  <div className="rounded-xl border border-white/5 bg-black/20 px-3 py-2">Mozgás: <span className="font-black text-white">{todayLog.calories_out_extra} kcal</span></div>
+                </div>
+              </div>
+
               {latestLog && status ? (
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <div className="rounded-2xl border border-white/5 bg-white/5 p-4"><div className="text-[10px] font-black uppercase tracking-widest text-white/40">Napi alap</div><div className="mt-2 text-2xl font-black text-white">{latestLog.calorie_target}</div><div className="text-xs text-white/40">kcal</div></div>
@@ -923,7 +1044,7 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
                                         <button onClick={() => applyPreset(preset)} className="max-w-[calc(100vw-11rem)] whitespace-normal break-words px-3 py-2 text-left text-xs text-white/90 hover:bg-white/10 sm:max-w-none">
                                           {preset.source_text || preset.label}
                                         </button>
-                                        <button onClick={() => toggleFavoritePreset(preset)} className="border-l border-white/10 px-3 text-amber-300 hover:bg-white/10" aria-label="Kedvenc törlése">
+                                        <button onClick={() => void toggleFavoritePreset(preset)} className="border-l border-white/10 px-3 text-amber-300 hover:bg-white/10" aria-label="Kedvenc törlése">
                                           <Star size={14} className="fill-current" />
                                         </button>
                                       </div>
@@ -940,8 +1061,8 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
                               <button onClick={() => applyPreset(preset)} className="max-w-[calc(100vw-11rem)] whitespace-normal break-words px-3 py-2 text-left text-xs text-white/80 hover:bg-white/10 sm:max-w-none">
                                 {preset.source_text || preset.label}
                               </button>
-                              <button onClick={() => toggleFavoritePreset(preset)} className="border-l border-white/10 px-3 text-white/50 hover:bg-white/10 hover:text-amber-300" aria-label="Kedvenc jelölése">
-                                <Star size={14} className={favoritePresetKeys.includes(getPresetKey(preset)) ? 'fill-current text-amber-300' : ''} />
+                              <button onClick={() => void toggleFavoritePreset(preset)} className="border-l border-white/10 px-3 text-white/50 hover:bg-white/10 hover:text-amber-300" aria-label="Kedvenc jelölése">
+                                <Star size={14} className={getPresetFavorite(preset) ? 'fill-current text-amber-300' : ''} />
                               </button>
                             </div>
                           ))}
@@ -980,7 +1101,7 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
                                         <button onClick={() => applyPreset(preset)} className="max-w-[calc(100vw-11rem)] whitespace-normal break-words px-3 py-2 text-left text-xs text-white/90 hover:bg-white/10 sm:max-w-none">
                                           {preset.source_text || preset.label}
                                         </button>
-                                        <button onClick={() => toggleFavoritePreset(preset)} className="border-l border-white/10 px-3 text-amber-300 hover:bg-white/10" aria-label="Kedvenc törlése">
+                                        <button onClick={() => void toggleFavoritePreset(preset)} className="border-l border-white/10 px-3 text-amber-300 hover:bg-white/10" aria-label="Kedvenc törlése">
                                           <Star size={14} className="fill-current" />
                                         </button>
                                       </div>
@@ -997,8 +1118,8 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
                               <button onClick={() => applyPreset(preset)} className="max-w-[calc(100vw-11rem)] whitespace-normal break-words px-3 py-2 text-left text-xs text-white/80 hover:bg-white/10 sm:max-w-none">
                                 {preset.source_text || preset.label}
                               </button>
-                              <button onClick={() => toggleFavoritePreset(preset)} className="border-l border-white/10 px-3 text-white/50 hover:bg-white/10 hover:text-amber-300" aria-label="Kedvenc jelölése">
-                                <Star size={14} className={favoritePresetKeys.includes(getPresetKey(preset)) ? 'fill-current text-amber-300' : ''} />
+                              <button onClick={() => void toggleFavoritePreset(preset)} className="border-l border-white/10 px-3 text-white/50 hover:bg-white/10 hover:text-amber-300" aria-label="Kedvenc jelölése">
+                                <Star size={14} className={getPresetFavorite(preset) ? 'fill-current text-amber-300' : ''} />
                               </button>
                             </div>
                           ))}
@@ -1014,10 +1135,11 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
                 </div>
 
                 <div className="space-y-3 rounded-2xl border border-white/5 bg-white/5 p-3">
-                  <div className="grid gap-2 sm:grid-cols-[1fr_1fr_140px]">
+                  <div className="grid gap-2 sm:grid-cols-[1fr_1fr_140px_120px]">
                     <input type="number" placeholder="Bevitt kcal" value={caloriesIn} onChange={(event) => setCaloriesIn(event.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 p-3 font-bold text-white outline-none placeholder:text-white/20" />
                     <input type="number" placeholder="Extra mozgás" value={caloriesOutExtra} onChange={(event) => setCaloriesOutExtra(event.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 p-3 font-bold text-white outline-none placeholder:text-white/20" />
                     <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 p-3 text-sm font-bold uppercase tracking-wide text-white/80 outline-none" />
+                    <input type="time" value={entryTime} onChange={(event) => setEntryTime(event.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 p-3 text-sm font-bold uppercase tracking-wide text-white/80 outline-none" />
                   </div>
                   {editingEntryId && (
                     <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs text-amber-100">
@@ -1072,8 +1194,10 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
                             <div className="whitespace-pre-wrap break-words text-sm font-black text-white">{entry.source_text || entry.label || (entry.entry_type === 'meal' ? 'Étkezés' : 'Mozgás')}</div>
                             <div className="mt-1 text-xs text-white/45">
                               {entry.entry_type === 'meal' ? 'Étkezés' : 'Mozgás'} · {entry.source_type === 'ai' ? 'AI becslés' : entry.source_type === 'preset' ? 'Sablon' : 'Kézi'}
+                              <span className="mx-1">·</span>
+                              {getEntryTime(entry)}
                             </div>
-                            {entry.note && <div className="mt-1 whitespace-pre-wrap break-words text-xs text-white/60">{entry.note}</div>}
+                            {getEntryNoteText(entry) && <div className="mt-1 whitespace-pre-wrap break-words text-xs text-white/60">{getEntryNoteText(entry)}</div>}
                           </div>
                           <div className="flex items-center gap-2 self-end sm:self-center">
                             <button onClick={() => startEditingEntry(entry)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 text-white/70 transition-colors hover:bg-white/10 hover:text-white" aria-label="Tétel szerkesztése">
