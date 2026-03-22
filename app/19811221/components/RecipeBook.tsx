@@ -4,8 +4,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/app/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Utensils, ChevronDown, ChevronUp, Plus, X, Trash2, ChefHat, ScrollText, Edit2
+  Utensils, ChevronDown, ChevronUp, Plus, X, Trash2, ChefHat, ScrollText, Edit2, Loader2, Sparkles
 } from 'lucide-react';
+import { buildRecipeDescription, parseRecipeRecord, RecipeNutritionMeta } from '@/app/lib/recipes';
 
 interface Ingredient {
   amount: string;
@@ -18,6 +19,8 @@ interface Recipe {
   description: string;
   ingredients: Ingredient[];
   owner: string;
+  visibleDescription?: string;
+  nutrition?: RecipeNutritionMeta;
 }
 
 export default function RecipeBook({ owner }: { owner: string }) {
@@ -31,6 +34,14 @@ export default function RecipeBook({ owner }: { owner: string }) {
   const [formTitle, setFormTitle] = useState('');
   const [formDesc, setFormDesc] = useState('');
   const [formIngredients, setFormIngredients] = useState<Ingredient[]>([]);
+  const [yieldWeightGrams, setYieldWeightGrams] = useState('');
+  const [servings, setServings] = useState('');
+  const [totalCalories, setTotalCalories] = useState('');
+  const [caloriesPer100g, setCaloriesPer100g] = useState('');
+  const [caloriesPerServing, setCaloriesPerServing] = useState('');
+  const [nutritionAssumptions, setNutritionAssumptions] = useState('');
+  const [estimatingNutrition, setEstimatingNutrition] = useState(false);
+  const [estimateError, setEstimateError] = useState<string | null>(null);
 
   const fetchRecipes = useCallback(async () => {
     const { data } = await supabase
@@ -39,7 +50,7 @@ export default function RecipeBook({ owner }: { owner: string }) {
       .eq('owner', owner)
       .order('created_at', { ascending: false });
 
-    if (data) setRecipes(data as Recipe[]);
+    if (data) setRecipes((data as Recipe[]).map((recipe) => parseRecipeRecord(recipe)));
     setLoading(false);
   }, [owner]);
 
@@ -56,7 +67,15 @@ export default function RecipeBook({ owner }: { owner: string }) {
     const recipeData = {
       owner,
       title: formTitle,
-      description: formDesc,
+      description: buildRecipeDescription(formDesc, {
+        yieldWeightGrams: yieldWeightGrams ? parseInt(yieldWeightGrams, 10) : null,
+        servings: servings ? parseInt(servings, 10) : null,
+        totalCalories: totalCalories ? parseInt(totalCalories, 10) : null,
+        caloriesPer100g: caloriesPer100g ? parseInt(caloriesPer100g, 10) : null,
+        caloriesPerServing: caloriesPerServing ? parseInt(caloriesPerServing, 10) : null,
+        assumptions: nutritionAssumptions,
+        estimatedBy: nutritionAssumptions ? 'ai' : 'manual',
+      }),
       ingredients: formIngredients
     };
 
@@ -81,6 +100,13 @@ export default function RecipeBook({ owner }: { owner: string }) {
     setFormTitle('');
     setFormDesc('');
     setFormIngredients([{ amount: '', name: '' }]);
+    setYieldWeightGrams('');
+    setServings('');
+    setTotalCalories('');
+    setCaloriesPer100g('');
+    setCaloriesPerServing('');
+    setNutritionAssumptions('');
+    setEstimateError(null);
     setViewMode('list');
     setSelectedRecipe(null);
   };
@@ -90,14 +116,29 @@ export default function RecipeBook({ owner }: { owner: string }) {
     setFormTitle('');
     setFormDesc('');
     setFormIngredients([{ amount: '', name: '' }]);
+    setYieldWeightGrams('');
+    setServings('');
+    setTotalCalories('');
+    setCaloriesPer100g('');
+    setCaloriesPerServing('');
+    setNutritionAssumptions('');
+    setEstimateError(null);
     setViewMode('form');
   };
 
   const openEdit = (recipe: Recipe) => {
+    const nutrition = recipe.nutrition ?? {};
     setSelectedRecipe(recipe);
     setFormTitle(recipe.title);
-    setFormDesc(recipe.description);
+    setFormDesc(recipe.visibleDescription ?? recipe.description);
     setFormIngredients(recipe.ingredients ? [...recipe.ingredients] : [{ amount: '', name: '' }]);
+    setYieldWeightGrams(nutrition.yieldWeightGrams ? String(nutrition.yieldWeightGrams) : '');
+    setServings(nutrition.servings ? String(nutrition.servings) : '');
+    setTotalCalories(nutrition.totalCalories ? String(nutrition.totalCalories) : '');
+    setCaloriesPer100g(nutrition.caloriesPer100g ? String(nutrition.caloriesPer100g) : '');
+    setCaloriesPerServing(nutrition.caloriesPerServing ? String(nutrition.caloriesPerServing) : '');
+    setNutritionAssumptions(nutrition.assumptions ?? '');
+    setEstimateError(null);
     setViewMode('form');
   };
 
@@ -121,6 +162,59 @@ export default function RecipeBook({ owner }: { owner: string }) {
     setFormIngredients(newIngredients);
   };
 
+  const estimateNutrition = async () => {
+    if (!formTitle.trim() && formIngredients.every((ingredient) => !ingredient.name.trim())) {
+      setEstimateError('Adj meg legalább egy receptnevet vagy néhány hozzávalót a becsléshez.');
+      return;
+    }
+
+    setEstimatingNutrition(true);
+    setEstimateError(null);
+
+    try {
+      const response = await fetch('/api/recipe/estimate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          owner,
+          title: formTitle,
+          description: formDesc,
+          ingredients: formIngredients.filter((ingredient) => ingredient.name.trim()),
+        }),
+      });
+
+      const payload = (await response.json()) as {
+        estimate?: {
+          yieldWeightGrams?: number;
+          servings?: number;
+          totalCalories?: number;
+          caloriesPer100g?: number;
+          caloriesPerServing?: number;
+          assumptions?: string;
+        };
+        error?: string;
+      };
+
+      if (!response.ok || !payload.estimate) {
+        throw new Error(payload.error || 'Nem sikerült receptbecslést kérni.');
+      }
+
+      const estimate = payload.estimate;
+      setYieldWeightGrams(estimate.yieldWeightGrams ? String(estimate.yieldWeightGrams) : '');
+      setServings(estimate.servings ? String(estimate.servings) : '');
+      setTotalCalories(estimate.totalCalories ? String(estimate.totalCalories) : '');
+      setCaloriesPer100g(estimate.caloriesPer100g ? String(estimate.caloriesPer100g) : '');
+      setCaloriesPerServing(estimate.caloriesPerServing ? String(estimate.caloriesPerServing) : '');
+      setNutritionAssumptions(estimate.assumptions ?? '');
+    } catch (error) {
+      setEstimateError(error instanceof Error ? error.message : 'Ismeretlen hiba történt a becslés közben.');
+    } finally {
+      setEstimatingNutrition(false);
+    }
+  };
+
   if (loading) return null;
 
   return (
@@ -133,7 +227,7 @@ export default function RecipeBook({ owner }: { owner: string }) {
           <div className={`transition-transform duration-300 ${isOpen ? 'rotate-180' : 'rotate-0'}`}>
             {isOpen ? <ChevronUp className="text-white/50" /> : <ChevronDown className="text-white/50" />}
           </div>
-          <h2 className="text-xl font-black italic tracking-wider text-white uppercase">RECEPTTAR</h2>
+          <h2 className="text-xl font-black italic tracking-wider text-white uppercase">RECEPTTÁR</h2>
         </div>
         <Utensils size={20} className="text-white/30" />
       </div>
@@ -167,7 +261,12 @@ export default function RecipeBook({ owner }: { owner: string }) {
                           className="p-4 bg-white/5 rounded-xl border border-white/5 hover:border-amber-500/50 cursor-pointer group transition-all"
                         >
                           <h3 className="font-bold text-white group-hover:text-amber-500 transition-colors">{recipe.title}</h3>
-                          <p className="text-xs text-white/40 mt-1 truncate">{recipe.description?.substring(0, 50)}...</p>
+                          <p className="mt-1 line-clamp-2 text-xs text-white/40">{recipe.visibleDescription || recipe.description}</p>
+                          {recipe.nutrition?.caloriesPer100g ? (
+                            <div className="mt-2 inline-flex rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-black tracking-widest text-emerald-200">
+                              {recipe.nutrition.caloriesPer100g} kcal / 100 g
+                            </div>
+                          ) : null}
                         </div>
                       ))}
                     </div>
@@ -227,6 +326,70 @@ export default function RecipeBook({ owner }: { owner: string }) {
                     />
                   </div>
 
+                  <div className="space-y-3 rounded-2xl border border-white/5 bg-black/20 p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-widest text-white/40">Kalória adatok</div>
+                        <div className="mt-1 text-sm text-white/60">
+                          Ezt hasznosítja a kalóriamérleg, amikor saját receptből próbál számolni.
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => void estimateNutrition()}
+                        disabled={estimatingNutrition}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-widest text-white transition-colors hover:bg-white/10 disabled:opacity-50"
+                      >
+                        {estimatingNutrition ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                        Gemini receptbecslés
+                      </button>
+                    </div>
+
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <input
+                        type="number"
+                        placeholder="Kész tömeg (g)"
+                        value={yieldWeightGrams}
+                        onChange={(e) => setYieldWeightGrams(e.target.value)}
+                        className="w-full rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white outline-none placeholder:text-white/20"
+                      />
+                      <input
+                        type="number"
+                        placeholder="Adagok száma"
+                        value={servings}
+                        onChange={(e) => setServings(e.target.value)}
+                        className="w-full rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white outline-none placeholder:text-white/20"
+                      />
+                      <input
+                        type="number"
+                        placeholder="Teljes kcal"
+                        value={totalCalories}
+                        onChange={(e) => setTotalCalories(e.target.value)}
+                        className="w-full rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white outline-none placeholder:text-white/20"
+                      />
+                      <input
+                        type="number"
+                        placeholder="kcal / 100 g"
+                        value={caloriesPer100g}
+                        onChange={(e) => setCaloriesPer100g(e.target.value)}
+                        className="w-full rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white outline-none placeholder:text-white/20"
+                      />
+                      <input
+                        type="number"
+                        placeholder="kcal / adag"
+                        value={caloriesPerServing}
+                        onChange={(e) => setCaloriesPerServing(e.target.value)}
+                        className="w-full rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white outline-none placeholder:text-white/20 sm:col-span-2"
+                      />
+                    </div>
+
+                    {nutritionAssumptions ? (
+                      <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs leading-relaxed text-white/65">
+                        {nutritionAssumptions}
+                      </div>
+                    ) : null}
+                    {estimateError ? <div className="text-sm text-rose-200">{estimateError}</div> : null}
+                  </div>
+
                   <button
                     onClick={handleSave}
                     className="w-full py-4 bg-emerald-500 rounded-xl text-black font-black uppercase tracking-widest hover:bg-emerald-400"
@@ -279,8 +442,47 @@ export default function RecipeBook({ owner }: { owner: string }) {
                     <h4 className="flex items-center gap-2 text-xs font-black uppercase text-white/60 mb-4 tracking-widest">
                       <ScrollText size={16} className="text-blue-500" /> Elkészítés
                     </h4>
-                    <p className="text-sm text-white/80 leading-relaxed whitespace-pre-line">{selectedRecipe.description}</p>
+                    <p className="text-sm text-white/80 leading-relaxed whitespace-pre-line">{selectedRecipe.visibleDescription || selectedRecipe.description}</p>
                   </div>
+
+                  {(selectedRecipe.nutrition?.caloriesPer100g ||
+                    selectedRecipe.nutrition?.caloriesPerServing ||
+                    selectedRecipe.nutrition?.totalCalories) ? (
+                    <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                      <h4 className="mb-4 text-xs font-black uppercase tracking-widest text-white/60">Kalória adatok</h4>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {selectedRecipe.nutrition?.caloriesPer100g ? (
+                          <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/70">
+                            kcal / 100 g
+                            <div className="mt-1 text-lg font-black text-emerald-300">{selectedRecipe.nutrition.caloriesPer100g}</div>
+                          </div>
+                        ) : null}
+                        {selectedRecipe.nutrition?.caloriesPerServing ? (
+                          <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/70">
+                            kcal / adag
+                            <div className="mt-1 text-lg font-black text-emerald-300">{selectedRecipe.nutrition.caloriesPerServing}</div>
+                          </div>
+                        ) : null}
+                        {selectedRecipe.nutrition?.totalCalories ? (
+                          <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/70">
+                            Teljes kcal
+                            <div className="mt-1 text-lg font-black text-white">{selectedRecipe.nutrition.totalCalories}</div>
+                          </div>
+                        ) : null}
+                        {selectedRecipe.nutrition?.yieldWeightGrams ? (
+                          <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/70">
+                            Kész tömeg
+                            <div className="mt-1 text-lg font-black text-white">{selectedRecipe.nutrition.yieldWeightGrams} g</div>
+                          </div>
+                        ) : null}
+                      </div>
+                      {selectedRecipe.nutrition?.assumptions ? (
+                        <div className="mt-4 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-xs leading-relaxed text-white/65">
+                          {selectedRecipe.nutrition.assumptions}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               )}
             </div>

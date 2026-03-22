@@ -1,4 +1,6 @@
 ﻿import { NextResponse } from 'next/server';
+import { estimateCaloriesFromRecipes, parseRecipeRecord, StoredRecipe } from '@/app/lib/recipes';
+import { getSupabaseAdminClient } from '@/app/lib/server/supabase-admin';
 
 export const runtime = 'nodejs';
 
@@ -140,6 +142,44 @@ export async function POST(request: Request) {
     const body = (await request.json()) as EstimateRequest;
     if (!body.text?.trim()) {
       return NextResponse.json({ error: 'Hiányzik a leírás.' }, { status: 400 });
+    }
+
+    if (body.mode !== 'exercise' && body.owner?.trim()) {
+      try {
+        const supabase = getSupabaseAdminClient();
+        const { data: recipesData, error: recipesError } = await supabase
+          .from('recipes')
+          .select('id, owner, title, description, ingredients')
+          .eq('owner', body.owner.trim());
+
+        if (recipesError) {
+          throw recipesError;
+        }
+
+        const recipeEstimate = estimateCaloriesFromRecipes(
+          body.text.trim(),
+          ((recipesData ?? []) as StoredRecipe[]).map((recipe) => parseRecipeRecord(recipe))
+        );
+
+        if (recipeEstimate) {
+          return NextResponse.json({
+            estimate: {
+              totalCalories: recipeEstimate.calculatedCalories,
+              items: [
+                {
+                  name: `${recipeEstimate.recipe.title} (${recipeEstimate.matchedAmount})`,
+                  estimatedCalories: recipeEstimate.calculatedCalories,
+                  reason: recipeEstimate.reason,
+                },
+              ],
+              assumptions: recipeEstimate.assumptions,
+              confidence: 94,
+            },
+          });
+        }
+      } catch {
+        // Recept alapú találat hiba esetén megyünk tovább a Gemini fallbackre.
+      }
     }
 
     const prompt = buildPrompt(body);

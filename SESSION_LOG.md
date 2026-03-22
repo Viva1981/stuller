@@ -386,3 +386,28 @@
 - `npm run lint` lefutott
   - továbbra is csak a két régi `SchoolTimetable.tsx` warning maradt
 - `npm run build` sikeres
+
+## 2026-03-22 23:20 +01:00
+
+### Recepttár bővítés és recept-first kalóriabecslés
+
+- a `RecipeBook` modul bekerült Zsolt személyes oldalára is, így Andrea mellett Zsolt alatt is használható a recepttár
+- a receptleírás most opcionális, beágyazott táplálkozási metaadatot is tud tárolni a meglévő `recipes` rekordokban külön séma-migráció nélkül
+- a receptűrlap kapott egy új `Kalória adatok` blokkot a következő mezőkkel:
+  - kész tömeg grammban
+  - adagok száma
+  - teljes kcal
+  - kcal / 100 g
+  - kcal / adag
+- bekerült egy új `POST /api/recipe/estimate` végpont, ami Gemini segítségével receptszintű kalóriabecslést készít a recept neve, hozzávalói és elkészítése alapján
+- a receptűrlapon a `Gemini receptbecslés` gomb ezekkel az értékekkel elő tudja tölteni a kalóriás mezőket főzés közbeni rögzítéshez is
+- a kalóriamérleg `POST /api/calorie/estimate` route-ja most már étkezésnél először a saját recepteket próbálja egyeztetni az adott owner alatt
+- ha van recepttalálat és a recepthez van használható kalóriaadat, abból számol kcal-t mennyiség alapján (pl. gramm, dkg, adag, szelet)
+- ha nincs elég receptadat vagy nincs találat, akkor a korábbi Gemini fallback becslés fut tovább
+- a receptlista és recept-részletek most már meg tudják jeleníteni a recepthez mentett kalóriaadatokat is
+
+### Ellenőrzés
+
+- `npm run lint` lefutott
+  - továbbra is csak a két régi `SchoolTimetable.tsx` warning maradt
+- `npm run build` sikeres

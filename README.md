@@ -129,3 +129,20 @@ Mit jelent ez:
 - egy napon belül több külön mozgás is menthető
 - a napi összesítés ezekből a tételekből számolódik
 - a korábbi sablonok továbbra is újrahasználhatók
+
+### Recept-first kalóriabecslés
+
+A recepttár most már owner-alapon a személyes oldalakhoz is kapcsolódik, és a gyors étkezésbecslés először a saját recepteket próbálja használni.
+
+Mit jelent ez:
+- a `RecipeBook` most Zsolt és Andrea oldalán is elérhető
+- a recepthez opcionálisan megadható:
+  - kész tömeg grammban
+  - adagok száma
+  - teljes kcal
+  - kcal / 100 g
+  - kcal / adag
+- a receptűrlapon van `Gemini receptbecslés` gomb, ami a hozzávalók és az elkészítés alapján előtölti ezeket a mezőket
+- a `POST /api/calorie/estimate` végpont étkezésnél először a saját recepteket próbálja egyeztetni
+- ha van találat és van használható recept-kalóriaadat, abból számol
+- ha nincs recepttalálat vagy nincs elég adat, akkor fallbackként a korábbi Gemini-becslés fut
