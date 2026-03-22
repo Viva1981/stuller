@@ -327,3 +327,28 @@
 - `npm run lint` lefutott
   - továbbra is csak a két régi `SchoolTimetable.tsx` warning maradt
 - `npm run build` sikeres
+
+## 2026-03-22 18:45 +01:00
+
+### Kalóriamérleg UX finomítások
+
+- a `Személyes alapadatok` blokk mostantól lenyíló
+- kikerült a kézi `Tartalék alap kcal` mező a felületről
+- a profilmentés most a megadott adatokból számolt napi alapot menti vissza
+- a diagram alatti átlagkártya kikerült
+- a `Gemini gyors étkezés` és `Gemini gyors mozgás` blokk külön lenyíló lett
+- a preseteknél megjelent a kedvencek jelölése
+- a kedvencek külön lenyíló blokkban jelennek meg, és a többi sablon elé kerülnek
+- a kedvencek jelenleg ugyanazon origin localStorage-jában tárolódnak, így a PWA-ban és ugyanazon domainen megmaradnak
+- a sablonok szövege már nincs levágva és nincs mesterségesen kapitalizálva vagy uppercaselve
+- a rögzített napi tételeknél is teljes szöveg jelenik meg, tördeléssel
+- a zavaró magyarázó szöveg a beviteli blokk alól kikerült
+- a `Napi tételek` fejléc kapott bal/jobb napléptetést
+- a fejléc kompakt módon mutatja az adott nap státuszát és egyenlegét
+- a `Napi tételek` blokk kapott egy lábléc-összesítőt: napi alap, bevitt, mozgás, napi summa
+
+### Ellenőrzés
+
+- `npm run lint` lefutott
+  - továbbra is csak a két régi `SchoolTimetable.tsx` warning maradt
+- `npm run build` sikeres

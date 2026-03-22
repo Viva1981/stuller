@@ -15,6 +15,8 @@ import {
 import { format, isAfter, parseISO, subMonths, subYears } from 'date-fns';
 import { hu } from 'date-fns/locale';
 import {
+  ChevronLeft,
+  ChevronRight,
   ChevronDown,
   ChevronUp,
   Flame,
@@ -23,6 +25,7 @@ import {
   Plus,
   Save,
   Sparkles,
+  Star,
   Target,
   Trash2,
   TrendingDown,
@@ -165,7 +168,7 @@ function calculateMaintenance(weightKg: number | null, profile: CalorieProfile |
 }
 
 function buildPresetLabel(text: string) {
-  return text.trim().replace(/\s+/g, ' ').slice(0, 80);
+  return text.trim().replace(/\s+/g, ' ');
 }
 
 function buildEntryLabel(sourceText: string, fallback: string) {
@@ -205,6 +208,16 @@ function aggregateEntries(entries: CalorieEntry[], effectiveMaintenance: number,
   return [...grouped.values()].sort((left, right) => left.date.localeCompare(right.date));
 }
 
+function shiftDateByDays(date: string, days: number) {
+  const value = new Date(`${date}T12:00:00`);
+  value.setDate(value.getDate() + days);
+  return value.toISOString().split('T')[0];
+}
+
+function getPresetKey(preset: Pick<CaloriePreset, 'preset_type' | 'label'>) {
+  return `${preset.preset_type}:${preset.label}`;
+}
+
 async function upsertPreset(owner: string, presetType: EstimateMode, sourceText: string, calories: number, note?: string) {
   const label = buildPresetLabel(sourceText);
   if (!label || !calories) {
@@ -236,7 +249,6 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
   const [ageYears, setAgeYears] = useState('');
   const [sex, setSex] = useState<'male' | 'female'>('male');
   const [activityLevel, setActivityLevel] = useState<ActivityLevel>('light');
-  const [fallbackMaintenance, setFallbackMaintenance] = useState('');
 
   const [caloriesIn, setCaloriesIn] = useState('');
   const [caloriesOutExtra, setCaloriesOutExtra] = useState('');
@@ -263,6 +275,12 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
   const [isOpen, setIsOpen] = useState(false);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const todayDate = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isMealOpen, setIsMealOpen] = useState(true);
+  const [isExerciseOpen, setIsExerciseOpen] = useState(false);
+  const [isFavoriteMealsOpen, setIsFavoriteMealsOpen] = useState(true);
+  const [isFavoriteExercisesOpen, setIsFavoriteExercisesOpen] = useState(true);
+  const [favoritePresetKeys, setFavoritePresetKeys] = useState<string[]>([]);
 
   const fetchData = useCallback(async () => {
     const [entriesResult, profileResult, weightResult, presetsResult] = await Promise.all([
@@ -288,14 +306,12 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
       setAgeYears(typedProfile.age_years ? String(typedProfile.age_years) : '');
       setSex(typedProfile.sex ?? 'male');
       setActivityLevel(typedProfile.activity_level ?? 'light');
-      setFallbackMaintenance(typedProfile.maintenance_calories ? String(typedProfile.maintenance_calories) : '');
     } else {
       setProfile(null);
       setHeightCm('');
       setAgeYears('');
       setSex('male');
       setActivityLevel('light');
-      setFallbackMaintenance('');
     }
 
     const weightLog = (weightResult.data?.[0] as WeightLog | undefined) ?? null;
@@ -314,6 +330,25 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
     }, 0);
     return () => clearTimeout(initTimer);
   }, [fetchData]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const stored = window.localStorage.getItem(`calorie-preset-favorites:${owner}`);
+    if (!stored) {
+      setFavoritePresetKeys([]);
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(stored) as unknown;
+      setFavoritePresetKeys(Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []);
+    } catch {
+      setFavoritePresetKeys([]);
+    }
+  }, [owner]);
 
   const effectiveMaintenance = useMemo(() => calculateMaintenance(latestWeight, profile), [latestWeight, profile]);
   const isCalculatedMaintenance = Boolean(
@@ -360,46 +395,86 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
     [date, entries]
   );
 
-  const latestBalance = latestLog ? getBalance(latestLog) : null;
-  const status = latestBalance !== null ? getStatus(latestBalance) : null;
-
-  const averages = useMemo(() => {
-    if (filteredData.length === 0) {
-      return null;
+  const selectedDateLog = useMemo(() => {
+    const existing = dailyLogs.find((log) => log.date === date);
+    if (existing) {
+      return existing;
     }
 
-    const totals = filteredData.reduce(
-      (acc, log) => {
-        acc.target += log.calorie_target;
-        acc.in += log.calories_in;
-        acc.out += log.calories_out_extra;
-        acc.balance += getBalance(log);
-        return acc;
-      },
-      { target: 0, in: 0, out: 0, balance: 0 }
-    );
-
-    const days = filteredData.length;
     return {
-      target: Math.round(totals.target / days),
-      in: Math.round(totals.in / days),
-      out: Math.round(totals.out / days),
-      balance: Math.round(totals.balance / days),
-    };
-  }, [filteredData]);
+      date,
+      calorie_target: date === todayDate ? effectiveMaintenance : 0,
+      calories_in: 0,
+      calories_out_extra: 0,
+      balance: (0 - 0) - (date === todayDate ? effectiveMaintenance : 0),
+      entries: [],
+    } satisfies DailyCalorieLog;
+  }, [dailyLogs, date, effectiveMaintenance, todayDate]);
+
+  const latestBalance = latestLog ? getBalance(latestLog) : null;
+  const status = latestBalance !== null ? getStatus(latestBalance) : null;
+  const selectedDateBalance = selectedDateLog ? getBalance(selectedDateLog) : 0;
+  const selectedDateStatus = getStatus(selectedDateBalance);
+  const sortedMealPresets = useMemo(() => {
+    return [...mealPresets].sort((left, right) => {
+      const leftFavorite = favoritePresetKeys.includes(getPresetKey(left)) ? 1 : 0;
+      const rightFavorite = favoritePresetKeys.includes(getPresetKey(right)) ? 1 : 0;
+      if (leftFavorite !== rightFavorite) {
+        return rightFavorite - leftFavorite;
+      }
+      return right.last_used_at.localeCompare(left.last_used_at);
+    });
+  }, [favoritePresetKeys, mealPresets]);
+  const sortedExercisePresets = useMemo(() => {
+    return [...exercisePresets].sort((left, right) => {
+      const leftFavorite = favoritePresetKeys.includes(getPresetKey(left)) ? 1 : 0;
+      const rightFavorite = favoritePresetKeys.includes(getPresetKey(right)) ? 1 : 0;
+      if (leftFavorite !== rightFavorite) {
+        return rightFavorite - leftFavorite;
+      }
+      return right.last_used_at.localeCompare(left.last_used_at);
+    });
+  }, [exercisePresets, favoritePresetKeys]);
+  const favoriteMealPresets = useMemo(
+    () => sortedMealPresets.filter((preset) => favoritePresetKeys.includes(getPresetKey(preset))),
+    [favoritePresetKeys, sortedMealPresets]
+  );
+  const regularMealPresets = useMemo(
+    () => sortedMealPresets.filter((preset) => !favoritePresetKeys.includes(getPresetKey(preset))),
+    [favoritePresetKeys, sortedMealPresets]
+  );
+  const favoriteExercisePresets = useMemo(
+    () => sortedExercisePresets.filter((preset) => favoritePresetKeys.includes(getPresetKey(preset))),
+    [favoritePresetKeys, sortedExercisePresets]
+  );
+  const regularExercisePresets = useMemo(
+    () => sortedExercisePresets.filter((preset) => !favoritePresetKeys.includes(getPresetKey(preset))),
+    [favoritePresetKeys, sortedExercisePresets]
+  );
 
   const saveProfile = async () => {
-    if (!fallbackMaintenance && (!heightCm || !ageYears)) {
-      setError('Adj meg legalább egy tartalék alap kcal értéket, vagy töltsd ki a profilt.');
+    if (!heightCm || !ageYears || !sex || !activityLevel) {
+      setError('A számoláshoz add meg a magasságot, életkort, nemet és életmódot.');
       return;
     }
 
     setSavingProfile(true);
     setError(null);
 
+    const draftProfile: CalorieProfile | null = {
+      id: profile?.id ?? 'draft',
+      owner,
+      maintenance_calories: profile?.maintenance_calories ?? 0,
+      height_cm: heightCm ? parseInt(heightCm, 10) : null,
+      age_years: ageYears ? parseInt(ageYears, 10) : null,
+      sex,
+      activity_level: activityLevel,
+    };
+    const calculatedMaintenance = calculateMaintenance(latestWeight, draftProfile);
+
     const profilePayload = {
       owner,
-      maintenance_calories: parseInt(fallbackMaintenance || '0', 10),
+      maintenance_calories: calculatedMaintenance,
       height_cm: heightCm ? parseInt(heightCm, 10) : null,
       age_years: ageYears ? parseInt(ageYears, 10) : null,
       sex,
@@ -521,6 +596,19 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
     }
 
     setNote((current) => current || preset.note || `Korábbi sablon: ${preset.label}`);
+  };
+
+  const toggleFavoritePreset = (preset: CaloriePreset) => {
+    const presetKey = getPresetKey(preset);
+    const nextFavoriteKeys = favoritePresetKeys.includes(presetKey)
+      ? favoritePresetKeys.filter((key) => key !== presetKey)
+      : [presetKey, ...favoritePresetKeys];
+
+    setFavoritePresetKeys(nextFavoriteKeys);
+
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(`calorie-preset-favorites:${owner}`, JSON.stringify(nextFavoriteKeys));
+    }
   };
 
   const resetEntryForm = () => {
@@ -719,44 +807,65 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
               )}
 
               <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
-                <div className="flex flex-col gap-4">
+                <button
+                  onClick={() => setIsProfileOpen((current) => !current)}
+                  className="flex w-full items-center justify-between gap-3 text-left"
+                >
                   <div>
                     <div className="text-[10px] font-black uppercase tracking-widest text-white/40">Személyes alapadatok</div>
                     <div className="mt-1 text-sm text-white/60">
                       A napi kalóriaigény a legutóbbi súlybejegyzésedből és ezekből az adatokból számolódik.
                     </div>
                   </div>
-
-                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-                    <input type="number" value={heightCm} onChange={(event) => setHeightCm(event.target.value)} placeholder="Magasság cm" className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 font-bold text-white outline-none placeholder:text-white/20" />
-                    <input type="number" value={ageYears} onChange={(event) => setAgeYears(event.target.value)} placeholder="Életkor" className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 font-bold text-white outline-none placeholder:text-white/20" />
-                    <select value={sex} onChange={(event) => setSex(event.target.value as 'male' | 'female')} className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 font-bold text-white outline-none">
-                      <option value="male">Férfi</option>
-                      <option value="female">Nő</option>
-                    </select>
-                    <select value={activityLevel} onChange={(event) => setActivityLevel(event.target.value as ActivityLevel)} className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 font-bold text-white outline-none">
-                      {ACTIVITY_LEVEL_OPTIONS.map((item) => (
-                        <option key={item.value} value={item.value}>{item.label}</option>
-                      ))}
-                    </select>
-                    <input type="number" value={fallbackMaintenance} onChange={(event) => setFallbackMaintenance(event.target.value)} placeholder="Tartalék alap kcal" className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 font-bold text-white outline-none placeholder:text-white/20" />
-                  </div>
-
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="rounded-2xl border border-white/5 bg-black/20 px-4 py-3 text-sm text-white/70">
-                      <div>Legutóbbi súly: <span className="font-black text-white">{latestWeight ? `${latestWeight} kg` : 'nincs adat'}</span></div>
-                      <div className="mt-1">Napi alap most: <span className="font-black text-emerald-300">{effectiveMaintenance || 0} kcal</span></div>
-                      <div className="mt-1 text-xs text-white/45">
-                        {isCalculatedMaintenance ? 'A számolás a legutóbbi súlybejegyzésből történik.' : 'Még nincs elég profil- vagy súlyadat, ezért a tartalék alap kcal értéket használjuk.'}
-                      </div>
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs font-black tracking-widest text-emerald-300">
+                      {effectiveMaintenance || 0} kcal
                     </div>
-
-                    <button onClick={saveProfile} disabled={savingProfile} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 font-black uppercase tracking-widest text-black transition-colors hover:bg-emerald-400 disabled:opacity-50">
-                      {savingProfile ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                      Profil mentése
-                    </button>
+                    {isProfileOpen ? <ChevronUp className="text-white/50" /> : <ChevronDown className="text-white/50" />}
                   </div>
-                </div>
+                </button>
+
+                <AnimatePresence initial={false}>
+                  {isProfileOpen && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="mt-4 flex flex-col gap-4">
+                        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                          <input type="number" value={heightCm} onChange={(event) => setHeightCm(event.target.value)} placeholder="Magasság cm" className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 font-bold text-white outline-none placeholder:text-white/20" />
+                          <input type="number" value={ageYears} onChange={(event) => setAgeYears(event.target.value)} placeholder="Életkor" className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 font-bold text-white outline-none placeholder:text-white/20" />
+                          <select value={sex} onChange={(event) => setSex(event.target.value as 'male' | 'female')} className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 font-bold text-white outline-none">
+                            <option value="male">Férfi</option>
+                            <option value="female">Nő</option>
+                          </select>
+                          <select value={activityLevel} onChange={(event) => setActivityLevel(event.target.value as ActivityLevel)} className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 font-bold text-white outline-none">
+                            {ACTIVITY_LEVEL_OPTIONS.map((item) => (
+                              <option key={item.value} value={item.value}>{item.label}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="rounded-2xl border border-white/5 bg-black/20 px-4 py-3 text-sm text-white/70">
+                            <div>Legutóbbi súly: <span className="font-black text-white">{latestWeight ? `${latestWeight} kg` : 'nincs adat'}</span></div>
+                            <div className="mt-1">Napi alap most: <span className="font-black text-emerald-300">{effectiveMaintenance || 0} kcal</span></div>
+                            <div className="mt-1 text-xs text-white/45">
+                              {isCalculatedMaintenance ? 'A számolás a legutóbbi súlybejegyzésből történik.' : 'A pontos számoláshoz szükség van legalább egy súlybejegyzésre is a súlynaplóban.'}
+                            </div>
+                          </div>
+
+                          <button onClick={saveProfile} disabled={savingProfile} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 font-black uppercase tracking-widest text-black transition-colors hover:bg-emerald-400 disabled:opacity-50">
+                            {savingProfile ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                            Profil mentése
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
               {latestLog && status ? (
@@ -790,35 +899,118 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
               <div className="flex flex-col gap-4">
                 <div className="flex justify-center gap-1.5">{RANGES.map((item) => (<button key={item.value} onClick={() => setRange(item.value)} className={`rounded-lg px-3 py-1.5 text-[10px] font-black tracking-widest transition-all ${range === item.value ? 'bg-emerald-500 text-black' : 'bg-white/5 text-white/40 hover:bg-white/10'}`}>{item.label}</button>))}</div>
 
-                {averages && (
-                  <div className="grid gap-3 rounded-2xl border border-white/5 bg-white/5 p-4 sm:grid-cols-4">
-                    <div><div className="text-[10px] font-black uppercase tracking-widest text-white/40">Átlag alap</div><div className="mt-1 text-sm font-bold text-white">{averages.target} kcal</div></div>
-                    <div><div className="text-[10px] font-black uppercase tracking-widest text-white/40">Átlag bevitt</div><div className="mt-1 text-sm font-bold text-white">{averages.in} kcal</div></div>
-                    <div><div className="text-[10px] font-black uppercase tracking-widest text-white/40">Átlag mozgás</div><div className="mt-1 text-sm font-bold text-white">{averages.out} kcal</div></div>
-                    <div><div className="text-[10px] font-black uppercase tracking-widest text-white/40">Átlag egyenleg</div><div className={`mt-1 text-sm font-bold ${averages.balance <= 0 ? 'text-emerald-400' : 'text-rose-300'}`}>{formatBalance(averages.balance)}</div></div>
-                  </div>
-                )}
-
                 <div className="space-y-3 rounded-2xl border border-white/5 bg-white/5 p-3">
-                  <div className="text-[10px] font-black uppercase tracking-widest text-white/40">Gemini gyors étkezés</div>
-                  <textarea rows={3} value={quickMealText} onChange={(event) => { setQuickMealText(event.target.value); setMealSourceType('manual'); }} placeholder="Példa: ettem 3 tojást, két szelet kenyeret és egy protein shake-et" className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-white/20" />
-                  <div className="flex flex-wrap gap-2">{mealPresets.map((preset) => (<button key={preset.id} onClick={() => applyPreset(preset)} className="rounded-full border border-white/10 bg-black/20 px-3 py-2 text-xs font-black uppercase tracking-widest text-white/80 hover:bg-white/10">{preset.label}</button>))}</div>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <button onClick={() => void estimateWithGemini('meal')} disabled={estimatingMeal || !quickMealText.trim()} className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 font-black uppercase tracking-widest text-white transition-colors hover:bg-white/10 disabled:opacity-50">{estimatingMeal ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}Gemini becslés</button>
-                    {mealEstimate && (<div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">Becsült összesen: <span className="font-black">{mealEstimate.totalCalories} kcal</span></div>)}
-                  </div>
-                  {mealEstimateError && <div className="text-sm text-rose-200">{mealEstimateError}</div>}
+                  <button onClick={() => setIsMealOpen((current) => !current)} className="flex w-full items-center justify-between gap-3 text-left">
+                    <div className="text-[10px] font-black uppercase tracking-widest text-white/40">Gemini gyors étkezés</div>
+                    {isMealOpen ? <ChevronUp className="text-white/50" /> : <ChevronDown className="text-white/50" />}
+                  </button>
+                  <AnimatePresence initial={false}>
+                    {isMealOpen && (
+                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="space-y-3 overflow-hidden">
+                        <textarea rows={3} value={quickMealText} onChange={(event) => { setQuickMealText(event.target.value); setMealSourceType('manual'); }} placeholder="Példa: ettem 3 tojást, két szelet kenyeret és egy protein shake-et" className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-white/20" />
+                        {favoriteMealPresets.length > 0 && (
+                          <div className="rounded-2xl border border-white/5 bg-black/20 p-3">
+                            <button onClick={() => setIsFavoriteMealsOpen((current) => !current)} className="flex w-full items-center justify-between gap-3 text-left">
+                              <span className="text-[10px] font-black uppercase tracking-widest text-white/40">Kedvencek</span>
+                              {isFavoriteMealsOpen ? <ChevronUp className="text-white/50" /> : <ChevronDown className="text-white/50" />}
+                            </button>
+                            <AnimatePresence initial={false}>
+                              {isFavoriteMealsOpen && (
+                                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="mt-3 overflow-hidden">
+                                  <div className="flex flex-wrap gap-2">
+                                    {favoriteMealPresets.map((preset) => (
+                                      <div key={preset.id} className="flex max-w-full items-stretch overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+                                        <button onClick={() => applyPreset(preset)} className="max-w-[calc(100vw-11rem)] whitespace-normal break-words px-3 py-2 text-left text-xs text-white/90 hover:bg-white/10 sm:max-w-none">
+                                          {preset.source_text || preset.label}
+                                        </button>
+                                        <button onClick={() => toggleFavoritePreset(preset)} className="border-l border-white/10 px-3 text-amber-300 hover:bg-white/10" aria-label="Kedvenc törlése">
+                                          <Star size={14} className="fill-current" />
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        )}
+                        <div className="flex flex-wrap gap-2">
+                          {regularMealPresets.map((preset) => (
+                            <div key={preset.id} className="flex max-w-full items-stretch overflow-hidden rounded-2xl border border-white/10 bg-black/20">
+                              <button onClick={() => applyPreset(preset)} className="max-w-[calc(100vw-11rem)] whitespace-normal break-words px-3 py-2 text-left text-xs text-white/80 hover:bg-white/10 sm:max-w-none">
+                                {preset.source_text || preset.label}
+                              </button>
+                              <button onClick={() => toggleFavoritePreset(preset)} className="border-l border-white/10 px-3 text-white/50 hover:bg-white/10 hover:text-amber-300" aria-label="Kedvenc jelölése">
+                                <Star size={14} className={favoritePresetKeys.includes(getPresetKey(preset)) ? 'fill-current text-amber-300' : ''} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <button onClick={() => void estimateWithGemini('meal')} disabled={estimatingMeal || !quickMealText.trim()} className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 font-black uppercase tracking-widest text-white transition-colors hover:bg-white/10 disabled:opacity-50">{estimatingMeal ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}Gemini becslés</button>
+                          {mealEstimate && (<div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">Becsült összesen: <span className="font-black">{mealEstimate.totalCalories} kcal</span></div>)}
+                        </div>
+                        {mealEstimateError && <div className="text-sm text-rose-200">{mealEstimateError}</div>}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
 
                 <div className="space-y-3 rounded-2xl border border-white/5 bg-white/5 p-3">
-                  <div className="text-[10px] font-black uppercase tracking-widest text-white/40">Gemini gyors mozgás</div>
-                  <textarea rows={3} value={quickExerciseText} onChange={(event) => { setQuickExerciseText(event.target.value); setExerciseSourceType('manual'); }} placeholder="Példa: 45 perc gyors séta dombos terepen, vagy 50 perc közepes intenzitású súlyzós edzés" className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-white/20" />
-                  <div className="flex flex-wrap gap-2">{exercisePresets.map((preset) => (<button key={preset.id} onClick={() => applyPreset(preset)} className="rounded-full border border-white/10 bg-black/20 px-3 py-2 text-xs font-black uppercase tracking-widest text-white/80 hover:bg-white/10">{preset.label}</button>))}</div>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <button onClick={() => void estimateWithGemini('exercise')} disabled={estimatingExercise || !quickExerciseText.trim()} className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 font-black uppercase tracking-widest text-white transition-colors hover:bg-white/10 disabled:opacity-50">{estimatingExercise ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}Gemini mozgásbecslés</button>
-                    {exerciseEstimate && (<div className="rounded-xl border border-sky-500/20 bg-sky-500/10 px-4 py-3 text-sm text-sky-100">Becsült extra égetés: <span className="font-black">{exerciseEstimate.totalCalories} kcal</span></div>)}
-                  </div>
-                  {exerciseEstimateError && <div className="text-sm text-rose-200">{exerciseEstimateError}</div>}
+                  <button onClick={() => setIsExerciseOpen((current) => !current)} className="flex w-full items-center justify-between gap-3 text-left">
+                    <div className="text-[10px] font-black uppercase tracking-widest text-white/40">Gemini gyors mozgás</div>
+                    {isExerciseOpen ? <ChevronUp className="text-white/50" /> : <ChevronDown className="text-white/50" />}
+                  </button>
+                  <AnimatePresence initial={false}>
+                    {isExerciseOpen && (
+                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="space-y-3 overflow-hidden">
+                        <textarea rows={3} value={quickExerciseText} onChange={(event) => { setQuickExerciseText(event.target.value); setExerciseSourceType('manual'); }} placeholder="Példa: 45 perc gyors séta dombos terepen, vagy 50 perc közepes intenzitású súlyzós edzés" className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-white/20" />
+                        {favoriteExercisePresets.length > 0 && (
+                          <div className="rounded-2xl border border-white/5 bg-black/20 p-3">
+                            <button onClick={() => setIsFavoriteExercisesOpen((current) => !current)} className="flex w-full items-center justify-between gap-3 text-left">
+                              <span className="text-[10px] font-black uppercase tracking-widest text-white/40">Kedvencek</span>
+                              {isFavoriteExercisesOpen ? <ChevronUp className="text-white/50" /> : <ChevronDown className="text-white/50" />}
+                            </button>
+                            <AnimatePresence initial={false}>
+                              {isFavoriteExercisesOpen && (
+                                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="mt-3 overflow-hidden">
+                                  <div className="flex flex-wrap gap-2">
+                                    {favoriteExercisePresets.map((preset) => (
+                                      <div key={preset.id} className="flex max-w-full items-stretch overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+                                        <button onClick={() => applyPreset(preset)} className="max-w-[calc(100vw-11rem)] whitespace-normal break-words px-3 py-2 text-left text-xs text-white/90 hover:bg-white/10 sm:max-w-none">
+                                          {preset.source_text || preset.label}
+                                        </button>
+                                        <button onClick={() => toggleFavoritePreset(preset)} className="border-l border-white/10 px-3 text-amber-300 hover:bg-white/10" aria-label="Kedvenc törlése">
+                                          <Star size={14} className="fill-current" />
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        )}
+                        <div className="flex flex-wrap gap-2">
+                          {regularExercisePresets.map((preset) => (
+                            <div key={preset.id} className="flex max-w-full items-stretch overflow-hidden rounded-2xl border border-white/10 bg-black/20">
+                              <button onClick={() => applyPreset(preset)} className="max-w-[calc(100vw-11rem)] whitespace-normal break-words px-3 py-2 text-left text-xs text-white/80 hover:bg-white/10 sm:max-w-none">
+                                {preset.source_text || preset.label}
+                              </button>
+                              <button onClick={() => toggleFavoritePreset(preset)} className="border-l border-white/10 px-3 text-white/50 hover:bg-white/10 hover:text-amber-300" aria-label="Kedvenc jelölése">
+                                <Star size={14} className={favoritePresetKeys.includes(getPresetKey(preset)) ? 'fill-current text-amber-300' : ''} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <button onClick={() => void estimateWithGemini('exercise')} disabled={estimatingExercise || !quickExerciseText.trim()} className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 font-black uppercase tracking-widest text-white transition-colors hover:bg-white/10 disabled:opacity-50">{estimatingExercise ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}Gemini mozgásbecslés</button>
+                          {exerciseEstimate && (<div className="rounded-xl border border-sky-500/20 bg-sky-500/10 px-4 py-3 text-sm text-sky-100">Becsült extra égetés: <span className="font-black">{exerciseEstimate.totalCalories} kcal</span></div>)}
+                        </div>
+                        {exerciseEstimateError && <div className="text-sm text-rose-200">{exerciseEstimateError}</div>}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
 
                 <div className="space-y-3 rounded-2xl border border-white/5 bg-white/5 p-3">
@@ -836,9 +1028,6 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
                       </button>
                     </div>
                   )}
-                  <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-xs text-white/60">
-                    Egy napon belül több külön tételt is rögzíthetsz. Ha a listából szerkesztesz egy elemet, a mentés azt az egy tételt módosítja.
-                  </div>
                   <div className="flex flex-col gap-2 rounded-2xl border border-white/5 bg-black/20 p-1.5 sm:flex-row">
                     <input type="text" placeholder="Megjegyzés opcionálisan, pl. étterem, futás, lábnap" value={note} onChange={(event) => setNote(event.target.value)} className="min-w-0 flex-1 bg-transparent px-3 py-3 text-sm text-white outline-none placeholder:text-white/20" />
                     <button onClick={handleSaveLog} disabled={savingEntries || !effectiveMaintenance || (parseInt(caloriesIn || '0', 10) <= 0 && parseInt(caloriesOutExtra || '0', 10) <= 0)} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-black uppercase tracking-widest text-black transition-colors hover:bg-emerald-400 disabled:opacity-50 sm:min-w-[124px] sm:w-auto">{savingEntries ? <Loader2 size={18} className="animate-spin" /> : editingEntryId ? <Save size={18} /> : <Plus size={18} />}{editingEntryId ? 'Mentés' : 'Hozzáadás'}</button>
@@ -846,11 +1035,28 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
                 </div>
 
                 <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
-                  <div className="mb-3 flex items-center justify-between">
-                    <div>
-                      <div className="text-[10px] font-black uppercase tracking-widest text-white/40">Napi tételek</div>
-                      <div className="mt-1 text-sm text-white/60">{format(parseISO(date), 'yyyy. MMMM d.', { locale: hu })}</div>
+                  <div className="mb-3 flex items-center gap-2">
+                    <button onClick={() => setDate((current) => shiftDateByDays(current, -1))} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-black/20 text-white/70 transition-colors hover:bg-white/10 hover:text-white">
+                      <ChevronLeft size={16} />
+                    </button>
+                    <div className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-[10px] font-black uppercase tracking-widest text-white/40">Napi tételek</div>
+                          <div className="mt-1 truncate text-sm text-white/70">{format(parseISO(date), 'yyyy. MMMM d.', { locale: hu })}</div>
+                        </div>
+                        <div className={`rounded-xl border px-3 py-2 text-right text-[10px] font-black tracking-widest ${selectedDateStatus.tone}`}>
+                          <div>{selectedDateStatus.label}</div>
+                          <div className="mt-1 text-xs">{formatBalance(selectedDateBalance)}</div>
+                        </div>
+                      </div>
                     </div>
+                    <button onClick={() => setDate((current) => shiftDateByDays(current, 1))} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-black/20 text-white/70 transition-colors hover:bg-white/10 hover:text-white">
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+
+                  <div className="mb-3 flex justify-end">
                     <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs font-black uppercase tracking-widest text-white/70">
                       {selectedDateEntries.length} tétel
                     </div>
@@ -860,12 +1066,12 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
                     <div className="space-y-2">
                       {selectedDateEntries.map((entry) => (
                         <div key={entry.id} className="flex flex-col gap-2 rounded-2xl border border-white/5 bg-black/20 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                          <div>
-                            <div className="text-sm font-black text-white">{entry.label || (entry.entry_type === 'meal' ? 'Étkezés' : 'Mozgás')}</div>
+                          <div className="min-w-0 flex-1">
+                            <div className="whitespace-pre-wrap break-words text-sm font-black text-white">{entry.source_text || entry.label || (entry.entry_type === 'meal' ? 'Étkezés' : 'Mozgás')}</div>
                             <div className="mt-1 text-xs text-white/45">
                               {entry.entry_type === 'meal' ? 'Étkezés' : 'Mozgás'} · {entry.source_type === 'ai' ? 'AI becslés' : entry.source_type === 'preset' ? 'Sablon' : 'Kézi'}
                             </div>
-                            {entry.note && <div className="mt-1 text-xs text-white/60">{entry.note}</div>}
+                            {entry.note && <div className="mt-1 whitespace-pre-wrap break-words text-xs text-white/60">{entry.note}</div>}
                           </div>
                           <div className="flex items-center gap-2 self-end sm:self-center">
                             <button onClick={() => startEditingEntry(entry)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 text-white/70 transition-colors hover:bg-white/10 hover:text-white" aria-label="Tétel szerkesztése">
@@ -886,6 +1092,25 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
                       A kiválasztott naphoz még nincs külön tétel. Itt fogod látni a több étkezést és több mozgást is ugyanarra a napra.
                     </div>
                   )}
+
+                  <div className="mt-4 grid gap-2 rounded-2xl border border-white/10 bg-black/20 p-3 sm:grid-cols-4">
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-widest text-white/40">Napi alap</div>
+                      <div className="mt-1 text-sm font-black text-white">{selectedDateLog.calorie_target} kcal</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-widest text-white/40">Bevitt</div>
+                      <div className="mt-1 text-sm font-black text-white">{selectedDateLog.calories_in} kcal</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-widest text-white/40">Mozgás</div>
+                      <div className="mt-1 text-sm font-black text-white">{selectedDateLog.calories_out_extra} kcal</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-widest text-white/40">Napi summa</div>
+                      <div className={`mt-1 text-sm font-black ${selectedDateBalance <= 0 ? 'text-emerald-400' : 'text-rose-300'}`}>{formatBalance(selectedDateBalance)}</div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
