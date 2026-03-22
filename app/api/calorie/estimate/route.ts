@@ -144,13 +144,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Hiányzik a leírás.' }, { status: 400 });
     }
 
-    if (body.mode !== 'exercise' && body.owner?.trim()) {
+    if (body.mode !== 'exercise') {
       try {
         const supabase = getSupabaseAdminClient();
         const { data: recipesData, error: recipesError } = await supabase
           .from('recipes')
-          .select('id, owner, title, description, ingredients')
-          .eq('owner', body.owner.trim());
+          .select('id, owner, title, description, ingredients');
 
         if (recipesError) {
           throw recipesError;
@@ -158,10 +157,12 @@ export async function POST(request: Request) {
 
         const recipeEstimate = estimateCaloriesFromRecipes(
           body.text.trim(),
-          ((recipesData ?? []) as StoredRecipe[]).map((recipe) => parseRecipeRecord(recipe))
+          ((recipesData ?? []) as StoredRecipe[]).map((recipe) => parseRecipeRecord(recipe)),
+          { preferredOwner: body.owner?.trim() || null }
         );
 
         if (recipeEstimate) {
+          const sourceLabel = recipeEstimate.recipe.owner === body.owner?.trim() ? 'Saját recept alapján' : `${recipeEstimate.recipe.owner} receptje alapján`;
           return NextResponse.json({
             estimate: {
               totalCalories: recipeEstimate.calculatedCalories,
@@ -169,10 +170,10 @@ export async function POST(request: Request) {
                 {
                   name: `${recipeEstimate.recipe.title} (${recipeEstimate.matchedAmount})`,
                   estimatedCalories: recipeEstimate.calculatedCalories,
-                  reason: recipeEstimate.reason,
+                  reason: `${sourceLabel}. ${recipeEstimate.reason}`,
                 },
               ],
-              assumptions: recipeEstimate.assumptions,
+              assumptions: `${sourceLabel}. ${recipeEstimate.assumptions}`,
               confidence: 94,
             },
           });

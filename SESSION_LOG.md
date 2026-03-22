@@ -411,3 +411,19 @@
 - `npm run lint` lefutott
   - továbbra is csak a két régi `SchoolTimetable.tsx` warning maradt
 - `npm run build` sikeres
+
+## 2026-03-22 23:45 +01:00
+
+### Receptleírás meta-kijelzés javítás és családi receptfallback
+
+- a recept részleteinél és a receptlista kivonatában többé nem jelenik meg nyersen a beágyazott recept-meta JSON
+- ha a recepthez nincs külön szöveges elkészítési leírás, akkor kulturált fallback szöveg jelenik meg a nyers meta helyett
+- a kalóriamérleg recept alapú becslése most már nem csak az adott owner receptjeit látja
+- a route a család összes receptjét figyelembe veszi, de az aktuális user saját receptjeit prioritással kezeli találat esetén
+- ha a találat nem a saját receptből jön, a visszaadott indoklás ezt külön jelzi
+
+### Ellenőrzés
+
+- `npm run lint` lefutott
+  - továbbra is csak a két régi `SchoolTimetable.tsx` warning maradt
+- `npm run build` sikeres

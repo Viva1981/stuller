@@ -108,6 +108,13 @@ export function parseRecipeRecord(recipe: StoredRecipe): ParsedRecipe {
   };
 }
 
+export function getRecipeDisplayDescription(recipe: {
+  visibleDescription?: string;
+  description: string;
+}) {
+  return recipe.visibleDescription?.trim() || 'Nincs külön elkészítési leírás.';
+}
+
 function normalizeText(value: string) {
   return value
     .toLocaleLowerCase('hu-HU')
@@ -175,7 +182,11 @@ function parseWeightInGrams(normalizedText: string) {
   return null;
 }
 
-export function estimateCaloriesFromRecipes(input: string, recipes: ParsedRecipe[]) {
+export function estimateCaloriesFromRecipes(
+  input: string,
+  recipes: ParsedRecipe[],
+  options?: { preferredOwner?: string | null }
+) {
   const normalizedInput = normalizeText(input);
   if (!normalizedInput) {
     return null;
@@ -186,7 +197,14 @@ export function estimateCaloriesFromRecipes(input: string, recipes: ParsedRecipe
       const normalizedTitle = normalizeText(recipe.title);
       return normalizedTitle && normalizedInput.includes(normalizedTitle);
     })
-    .sort((left, right) => normalizeText(right.title).length - normalizeText(left.title).length)[0];
+    .sort((left, right) => {
+      const leftOwnerScore = options?.preferredOwner && left.owner === options.preferredOwner ? 1 : 0;
+      const rightOwnerScore = options?.preferredOwner && right.owner === options.preferredOwner ? 1 : 0;
+      if (leftOwnerScore !== rightOwnerScore) {
+        return rightOwnerScore - leftOwnerScore;
+      }
+      return normalizeText(right.title).length - normalizeText(left.title).length;
+    })[0];
 
   if (!matchingRecipe) {
     return null;

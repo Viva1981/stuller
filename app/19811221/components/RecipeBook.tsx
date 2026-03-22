@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Utensils, ChevronDown, ChevronUp, Plus, X, Trash2, ChefHat, ScrollText, Edit2, Loader2, Sparkles
 } from 'lucide-react';
-import { buildRecipeDescription, parseRecipeRecord, RecipeNutritionMeta } from '@/app/lib/recipes';
+import { buildRecipeDescription, getRecipeDisplayDescription, parseRecipeRecord, RecipeNutritionMeta } from '@/app/lib/recipes';
 
 interface Ingredient {
   amount: string;
@@ -261,7 +261,7 @@ export default function RecipeBook({ owner }: { owner: string }) {
                           className="p-4 bg-white/5 rounded-xl border border-white/5 hover:border-amber-500/50 cursor-pointer group transition-all"
                         >
                           <h3 className="font-bold text-white group-hover:text-amber-500 transition-colors">{recipe.title}</h3>
-                          <p className="mt-1 line-clamp-2 text-xs text-white/40">{recipe.visibleDescription || recipe.description}</p>
+                          <p className="mt-1 line-clamp-2 text-xs text-white/40">{getRecipeDisplayDescription(recipe)}</p>
                           {recipe.nutrition?.caloriesPer100g ? (
                             <div className="mt-2 inline-flex rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-black tracking-widest text-emerald-200">
                               {recipe.nutrition.caloriesPer100g} kcal / 100 g
@@ -442,7 +442,7 @@ export default function RecipeBook({ owner }: { owner: string }) {
                     <h4 className="flex items-center gap-2 text-xs font-black uppercase text-white/60 mb-4 tracking-widest">
                       <ScrollText size={16} className="text-blue-500" /> Elkészítés
                     </h4>
-                    <p className="text-sm text-white/80 leading-relaxed whitespace-pre-line">{selectedRecipe.visibleDescription || selectedRecipe.description}</p>
+                    <p className="text-sm text-white/80 leading-relaxed whitespace-pre-line">{getRecipeDisplayDescription(selectedRecipe)}</p>
                   </div>
 
                   {(selectedRecipe.nutrition?.caloriesPer100g ||
