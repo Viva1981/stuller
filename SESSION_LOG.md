@@ -311,3 +311,19 @@
 - `npm run lint` lefutott
   - továbbra is csak a két régi `SchoolTimetable.tsx` warning maradt
 - `npm run build` sikeres
+
+## 2026-03-22 18:20 +01:00
+
+### Kalóriamérleg napi alap egységesítés
+
+- a napi összesítés eddig a mentett tételek `maintenance_calories` snapshotjából dolgozott, miközben a profilkártya a frissen számolt aktuális alapot mutatta
+- emiatt a mai napnál eltérhetett a kártyán látható `Napi alap most` és az összesítő `Napi alap` érték
+- a mai nap aggregálása most már mindig a friss, aktuálisan számolt napi alapot használja
+- a múltbeli napok továbbra is a saját elmentett snapshotjukból maradnak visszanézhetők
+- profilmentéskor a mai napi bejegyzések snapshotja is frissül az új számolt alapra, így a meglévő mai tételek sem maradnak régi alappal
+
+### Ellenőrzés
+
+- `npm run lint` lefutott
+  - továbbra is csak a két régi `SchoolTimetable.tsx` warning maradt
+- `npm run build` sikeres

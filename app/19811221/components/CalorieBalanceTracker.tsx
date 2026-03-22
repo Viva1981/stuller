@@ -173,7 +173,7 @@ function buildEntryLabel(sourceText: string, fallback: string) {
   return label || fallback;
 }
 
-function aggregateEntries(entries: CalorieEntry[]) {
+function aggregateEntries(entries: CalorieEntry[], effectiveMaintenance: number, todayDate: string) {
   const grouped = new Map<string, DailyCalorieLog>();
 
   for (const entry of entries) {
@@ -181,14 +181,15 @@ function aggregateEntries(entries: CalorieEntry[]) {
       grouped.get(entry.entry_date) ??
       ({
         date: entry.entry_date,
-        calorie_target: entry.maintenance_calories,
+        calorie_target: entry.entry_date === todayDate && effectiveMaintenance > 0 ? effectiveMaintenance : entry.maintenance_calories,
         calories_in: 0,
         calories_out_extra: 0,
         balance: 0,
         entries: [],
       } satisfies DailyCalorieLog);
 
-    existing.calorie_target = Math.max(existing.calorie_target, entry.maintenance_calories);
+    existing.calorie_target =
+      entry.entry_date === todayDate && effectiveMaintenance > 0 ? effectiveMaintenance : entry.maintenance_calories;
     existing.entries.push(entry);
 
     if (entry.entry_type === 'meal') {
@@ -261,6 +262,7 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
   const [exerciseEstimateError, setExerciseEstimateError] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
+  const todayDate = useMemo(() => new Date().toISOString().split('T')[0], []);
 
   const fetchData = useCallback(async () => {
     const [entriesResult, profileResult, weightResult, presetsResult] = await Promise.all([
@@ -318,7 +320,10 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
     latestWeight && profile?.height_cm && profile?.age_years && profile?.sex && profile?.activity_level
   );
 
-  const dailyLogs = useMemo(() => aggregateEntries(entries), [entries]);
+  const dailyLogs = useMemo(
+    () => aggregateEntries(entries, effectiveMaintenance, todayDate),
+    [entries, effectiveMaintenance, todayDate]
+  );
 
   const filteredData = useMemo(() => {
     if (range === 'ALL') return dailyLogs;
@@ -392,19 +397,18 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
     setSavingProfile(true);
     setError(null);
 
+    const profilePayload = {
+      owner,
+      maintenance_calories: parseInt(fallbackMaintenance || '0', 10),
+      height_cm: heightCm ? parseInt(heightCm, 10) : null,
+      age_years: ageYears ? parseInt(ageYears, 10) : null,
+      sex,
+      activity_level: activityLevel,
+    };
+
     const { data, error: profileError } = await supabase
       .from('calorie_profiles')
-      .upsert(
-        {
-          owner,
-          maintenance_calories: parseInt(fallbackMaintenance || '0', 10),
-          height_cm: heightCm ? parseInt(heightCm, 10) : null,
-          age_years: ageYears ? parseInt(ageYears, 10) : null,
-          sex,
-          activity_level: activityLevel,
-        },
-        { onConflict: 'owner' }
-      )
+      .upsert(profilePayload, { onConflict: 'owner' })
       .select('*')
       .single();
 
@@ -415,7 +419,20 @@ export default function CalorieBalanceTracker({ owner }: { owner: string }) {
       return;
     }
 
-    setProfile(data as CalorieProfile);
+    const nextProfile = data as CalorieProfile;
+    const nextMaintenance = calculateMaintenance(latestWeight, nextProfile);
+
+    setProfile(nextProfile);
+
+    if (nextMaintenance > 0) {
+      await supabase
+        .from('calorie_entries')
+        .update({ maintenance_calories: nextMaintenance })
+        .eq('owner', owner)
+        .eq('entry_date', todayDate);
+    }
+
+    await fetchData();
   };
 
   const estimateWithGemini = async (mode: EstimateMode) => {
