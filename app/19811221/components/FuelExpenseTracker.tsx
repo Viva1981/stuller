@@ -4,21 +4,23 @@ import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CarFront, ChevronDown, ChevronUp, Download, Plus, Trash2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { supabase } from '@/app/supabase';
 
-const STORAGE_KEY = 'stuller-fuel-expense-entries-v1';
 const FORM_STORAGE_KEY = 'stuller-fuel-expense-form-v1';
 const DEFAULT_AMORTIZATION_FT_PER_KM = 15;
 
 type FuelEntry = {
   id: string;
-  employeeName: string;
-  date: string;
+  owner: string;
+  employee_name: string;
+  trip_date: string;
   route: string;
   purpose: string;
-  licensePlate: string;
-  distanceKm: number;
-  consumptionLitersPer100Km: number;
-  navFuelPriceFtPerLiter: number;
+  license_plate: string;
+  distance_km: number;
+  consumption_l_per_100km: number;
+  nav_fuel_price_ft_per_liter: number;
+  created_at?: string;
 };
 
 type FormState = {
@@ -60,11 +62,11 @@ function parsePositiveNumber(value: string): number {
 }
 
 function calculateFuelCost(entry: FuelEntry) {
-  return (entry.distanceKm / 100) * entry.consumptionLitersPer100Km * entry.navFuelPriceFtPerLiter;
+  return (entry.distance_km / 100) * entry.consumption_l_per_100km * entry.nav_fuel_price_ft_per_liter;
 }
 
 function calculateAmortization(entry: FuelEntry, rate: number) {
-  return entry.distanceKm * rate;
+  return entry.distance_km * rate;
 }
 
 export default function FuelExpenseTracker({ owner }: { owner: string }) {
@@ -73,24 +75,15 @@ export default function FuelExpenseTracker({ owner }: { owner: string }) {
   const [error, setError] = useState<string | null>(null);
   const [navInfo, setNavInfo] = useState<string | null>(null);
   const [navLoading, setNavLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [exportFrom, setExportFrom] = useState('');
   const [exportTo, setExportTo] = useState('');
   const [employeeFilter, setEmployeeFilter] = useState('');
 
-  const storageKey = `${STORAGE_KEY}-${owner.toLowerCase()}`;
   const formStorageKey = `${FORM_STORAGE_KEY}-${owner.toLowerCase()}`;
 
   useEffect(() => {
-    const rawEntries = localStorage.getItem(storageKey);
-    if (rawEntries) {
-      try {
-        setEntries(JSON.parse(rawEntries) as FuelEntry[]);
-      } catch {
-        setEntries([]);
-      }
-    }
-
     const rawForm = localStorage.getItem(formStorageKey);
     if (rawForm) {
       try {
@@ -99,15 +92,35 @@ export default function FuelExpenseTracker({ owner }: { owner: string }) {
         setForm(INITIAL_FORM);
       }
     }
-  }, [storageKey, formStorageKey]);
-
-  useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify(entries));
-  }, [entries, storageKey]);
+  }, [formStorageKey]);
 
   useEffect(() => {
     localStorage.setItem(formStorageKey, JSON.stringify(form));
   }, [form, formStorageKey]);
+
+  const loadEntries = async () => {
+    setLoading(true);
+    setError(null);
+    const { data, error: loadError } = await supabase
+      .from('fuel_expense_entries')
+      .select('*')
+      .eq('owner', owner)
+      .order('trip_date', { ascending: false })
+      .order('created_at', { ascending: false });
+
+    setLoading(false);
+
+    if (loadError) {
+      setError(`Adatbetöltési hiba: ${loadError.message}`);
+      return;
+    }
+
+    setEntries((data ?? []) as FuelEntry[]);
+  };
+
+  useEffect(() => {
+    void loadEntries();
+  }, [owner]);
 
   const amortizationRate = useMemo(() => {
     const parsed = parsePositiveNumber(form.amortizationFtPerKm);
@@ -117,9 +130,9 @@ export default function FuelExpenseTracker({ owner }: { owner: string }) {
   const filteredEntries = useMemo(() => {
     const normalizedName = employeeFilter.trim().toLowerCase();
     return entries.filter((entry) => {
-      if (exportFrom && entry.date < exportFrom) return false;
-      if (exportTo && entry.date > exportTo) return false;
-      if (normalizedName && !entry.employeeName.toLowerCase().includes(normalizedName)) return false;
+      if (exportFrom && entry.trip_date < exportFrom) return false;
+      if (exportTo && entry.trip_date > exportTo) return false;
+      if (normalizedName && !entry.employee_name.toLowerCase().includes(normalizedName)) return false;
       return true;
     });
   }, [entries, exportFrom, exportTo, employeeFilter]);
@@ -130,7 +143,7 @@ export default function FuelExpenseTracker({ owner }: { owner: string }) {
         const fuelCost = calculateFuelCost(entry);
         const amortization = calculateAmortization(entry, amortizationRate);
         return {
-          distanceKm: acc.distanceKm + entry.distanceKm,
+          distanceKm: acc.distanceKm + entry.distance_km,
           fuelCost: acc.fuelCost + fuelCost,
           amortization: acc.amortization + amortization,
           total: acc.total + fuelCost + amortization,
@@ -142,7 +155,7 @@ export default function FuelExpenseTracker({ owner }: { owner: string }) {
 
   const hasFilter = Boolean(exportFrom || exportTo || employeeFilter.trim());
 
-  const handleAddEntry = () => {
+  const handleAddEntry = async () => {
     setError(null);
     const distanceKm = parsePositiveNumber(form.distanceKm);
     const consumption = parsePositiveNumber(form.consumptionLitersPer100Km);
@@ -162,19 +175,35 @@ export default function FuelExpenseTracker({ owner }: { owner: string }) {
       return;
     }
 
-    const entry: FuelEntry = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      employeeName: form.employeeName.trim(),
-      date: form.date,
+    const payload = {
+      owner,
+      employee_name: form.employeeName.trim(),
+      trip_date: form.date,
       route: form.route.trim(),
       purpose: form.purpose.trim(),
-      licensePlate: form.licensePlate.trim().toUpperCase(),
-      distanceKm,
-      consumptionLitersPer100Km: consumption,
-      navFuelPriceFtPerLiter: navPrice,
+      license_plate: form.licensePlate.trim().toUpperCase(),
+      distance_km: distanceKm,
+      consumption_l_per_100km: consumption,
+      nav_fuel_price_ft_per_liter: navPrice,
     };
 
-    setEntries((prev) => [entry, ...prev]);
+    const { error: insertError } = await supabase.from('fuel_expense_entries').insert(payload);
+    if (insertError) {
+      setError(`Mentési hiba: ${insertError.message}`);
+      return;
+    }
+
+    await loadEntries();
+  };
+
+  const handleDeleteEntry = async (id: string) => {
+    setError(null);
+    const { error: deleteError } = await supabase.from('fuel_expense_entries').delete().eq('id', id);
+    if (deleteError) {
+      setError(`Törlési hiba: ${deleteError.message}`);
+      return;
+    }
+    await loadEntries();
   };
 
   const handleFetchNavPrice = async () => {
@@ -210,14 +239,14 @@ export default function FuelExpenseTracker({ owner }: { owner: string }) {
       const fuelCost = calculateFuelCost(entry);
       const amortization = calculateAmortization(entry, amortizationRate);
       return {
-        'Dolgozó neve': entry.employeeName,
-        Dátum: entry.date,
+        'Dolgozó neve': entry.employee_name,
+        Dátum: entry.trip_date,
         'Honnan → hova': entry.route,
         'Cél / feladat': entry.purpose,
-        'Autó rendszáma': entry.licensePlate,
-        Km: entry.distanceKm,
-        'Fogyasztási norma (l/100km)': entry.consumptionLitersPer100Km,
-        'NAV üzemanyagár (Ft/l)': entry.navFuelPriceFtPerLiter,
+        'Autó rendszáma': entry.license_plate,
+        Km: entry.distance_km,
+        'Fogyasztási norma (l/100km)': entry.consumption_l_per_100km,
+        'NAV üzemanyagár (Ft/l)': entry.nav_fuel_price_ft_per_liter,
         'Rögzített amortizáció (Ft/km)': amortizationRate,
         'Üzemanyagköltség (Ft)': Math.round(fuelCost),
         'Amortizáció (Ft)': Math.round(amortization),
@@ -293,7 +322,7 @@ export default function FuelExpenseTracker({ owner }: { owner: string }) {
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <button onClick={handleAddEntry} className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-black uppercase tracking-widest text-black hover:bg-emerald-400">
+                <button onClick={() => void handleAddEntry()} className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-black uppercase tracking-widest text-black hover:bg-emerald-400">
                   <Plus size={16} /> Tétel hozzáadása
                 </button>
                 <button onClick={handleExport} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black uppercase tracking-widest text-white hover:bg-white/10">
@@ -307,6 +336,7 @@ export default function FuelExpenseTracker({ owner }: { owner: string }) {
                 <input className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-white outline-none placeholder:text-white/20 lg:col-span-2" placeholder="Dolgozó név szűrő" value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)} />
               </div>
 
+              {loading ? <p className="text-xs text-white/70">Betöltés...</p> : null}
               {navInfo ? <p className="text-xs text-white/70">{navInfo}</p> : null}
               {error ? <p className="text-sm text-rose-200">{error}</p> : null}
 
@@ -334,13 +364,13 @@ export default function FuelExpenseTracker({ owner }: { owner: string }) {
                       const total = calculateFuelCost(entry) + calculateAmortization(entry, amortizationRate);
                       return (
                         <tr key={entry.id} className="border-b border-white/5 last:border-b-0">
-                          <td className="px-2 py-2">{entry.employeeName}</td>
-                          <td className="px-2 py-2">{entry.date}</td>
+                          <td className="px-2 py-2">{entry.employee_name}</td>
+                          <td className="px-2 py-2">{entry.trip_date}</td>
                           <td className="px-2 py-2">{entry.route}</td>
-                          <td className="px-2 py-2">{entry.distanceKm}</td>
+                          <td className="px-2 py-2">{entry.distance_km}</td>
                           <td className="px-2 py-2 font-black text-emerald-300">{Math.round(total)} Ft</td>
                           <td className="px-2 py-2">
-                            <button onClick={() => setEntries((prev) => prev.filter((row) => row.id !== entry.id))} className="rounded-lg border border-white/10 p-2 text-white/60 hover:bg-white/10 hover:text-rose-200">
+                            <button onClick={() => void handleDeleteEntry(entry.id)} className="rounded-lg border border-white/10 p-2 text-white/60 hover:bg-white/10 hover:text-rose-200">
                               <Trash2 size={14} />
                             </button>
                           </td>
