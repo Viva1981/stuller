@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
 import CalorieBalanceTracker from '../components/CalorieBalanceTracker';
+import FuelExpenseTracker from '../components/FuelExpenseTracker';
 import RecipeBook from '../components/RecipeBook';
 import WeightTracker from '../components/WeightTracker';
 
@@ -28,6 +29,10 @@ export default function ZsoltPage() {
 
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.14 }}>
           <RecipeBook owner="Zsolt" />
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
+          <FuelExpenseTracker owner="Zsolt" />
         </motion.div>
       </div>
     </main>
