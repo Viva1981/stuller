@@ -41,7 +41,6 @@ type NavResponse = {
   error?: string;
 };
 
-
 const INITIAL_FORM: FormState = {
   employeeName: '',
   date: new Date().toISOString().split('T')[0],
@@ -159,7 +158,7 @@ export default function FuelExpenseTracker({ owner }: { owner: string }) {
       Number.isNaN(consumption) ||
       Number.isNaN(navPrice)
     ) {
-      setError('KĂ©rlek minden kĂ¶telezĹ‘ mezĹ‘t tĂ¶lts ki helyesen.');
+      setError('K\u00e9rlek minden k\u00f6telez\u0151 mez\u0151t t\u00f6lts ki helyesen.');
       return;
     }
 
@@ -186,16 +185,16 @@ export default function FuelExpenseTracker({ owner }: { owner: string }) {
       const response = await fetch('/api/nav-fuel-price', { cache: 'no-store' });
       const data = (await response.json()) as NavResponse;
       if (!response.ok) {
-        throw new Error(data.error ?? 'NAV Ăˇr lekĂ©rĂ©s sikertelen.');
+        throw new Error(data.error ?? 'NAV \u00e1r lek\u00e9r\u00e9s sikertelen.');
       }
       if (!data.latest?.esz95FtPerLiter) {
-        throw new Error('A NAV vĂˇlaszbĂłl nem olvashatĂł ki ESZ-95 Ăˇr.');
+        throw new Error('A NAV v\u00e1laszb\u00f3l nem olvashat\u00f3 ki ESZ-95 \u00e1r.');
       }
 
       setForm((prev) => ({ ...prev, navFuelPriceFtPerLiter: String(data.latest?.esz95FtPerLiter ?? '') }));
-      setNavInfo(`NAV frissĂ­tve: ${data.latest.month} - ${data.latest.esz95FtPerLiter} Ft/l`);
+      setNavInfo(`NAV friss\u00edtve: ${data.latest.month} - ${data.latest.esz95FtPerLiter} Ft/l`);
     } catch (fetchError) {
-      setError(fetchError instanceof Error ? fetchError.message : 'Ismeretlen hiba tĂ¶rtĂ©nt.');
+      setError(fetchError instanceof Error ? fetchError.message : 'Ismeretlen hiba t\u00f6rt\u00e9nt.');
     } finally {
       setNavLoading(false);
     }
@@ -203,7 +202,7 @@ export default function FuelExpenseTracker({ owner }: { owner: string }) {
 
   const handleExport = () => {
     if (filteredEntries.length === 0) {
-      setError('Nincs exportĂˇlhatĂł adat az adott szĹ±rĹ‘vel.');
+      setError('Nincs export\u00e1lhat\u00f3 adat az adott sz\u0171r\u0151vel.');
       return;
     }
 
@@ -211,44 +210,44 @@ export default function FuelExpenseTracker({ owner }: { owner: string }) {
       const fuelCost = calculateFuelCost(entry);
       const amortization = calculateAmortization(entry, amortizationRate);
       return {
-        'DolgozĂł neve': entry.employeeName,
-        DĂˇtum: entry.date,
-        'Honnan â†’ hova': entry.route,
-        'CĂ©l / feladat': entry.purpose,
-        'AutĂł rendszĂˇma': entry.licensePlate,
+        'Dolgoz\u00f3 neve': entry.employeeName,
+        'D\u00e1tum': entry.date,
+        'Honnan \u2192 hova': entry.route,
+        'C\u00e9l / feladat': entry.purpose,
+        'Aut\u00f3 rendsz\u00e1ma': entry.licensePlate,
         Km: entry.distanceKm,
-        'FogyasztĂˇsi norma (l/100km)': entry.consumptionLitersPer100Km,
-        'NAV ĂĽzemanyagĂˇr (Ft/l)': entry.navFuelPriceFtPerLiter,
-        'RĂ¶gzĂ­tett amortizĂˇciĂł (Ft/km)': amortizationRate,
-        'ĂśzemanyagkĂ¶ltsĂ©g (Ft)': Math.round(fuelCost),
-        'AmortizĂˇciĂł (Ft)': Math.round(amortization),
-        'SzĂˇmolt tĂ©rĂ­tĂ©s (Ft)': Math.round(fuelCost + amortization),
+        'Fogyaszt\u00e1si norma (l/100km)': entry.consumptionLitersPer100Km,
+        'NAV \u00fczemanyag\u00e1r (Ft/l)': entry.navFuelPriceFtPerLiter,
+        'R\u00f6gz\u00edtett amortiz\u00e1ci\u00f3 (Ft/km)': amortizationRate,
+        '\u00dczemanyagk\u00f6lts\u00e9g (Ft)': Math.round(fuelCost),
+        'Amortiz\u00e1ci\u00f3 (Ft)': Math.round(amortization),
+        'Sz\u00e1molt t\u00e9r\u00edt\u00e9s (Ft)': Math.round(fuelCost + amortization),
       };
     });
 
     rows.push({
-      'DolgozĂł neve': 'Ă–sszesen',
-      DĂˇtum: '',
-      'Honnan â†’ hova': '',
-      'CĂ©l / feladat': '',
-      'AutĂł rendszĂˇma': '',
+      'Dolgoz\u00f3 neve': '\u00d6sszesen',
+      'D\u00e1tum': '',
+      'Honnan \u2192 hova': '',
+      'C\u00e9l / feladat': '',
+      'Aut\u00f3 rendsz\u00e1ma': '',
       Km: Math.round(totals.distanceKm),
-      'FogyasztĂˇsi norma (l/100km)': '',
-      'NAV ĂĽzemanyagĂˇr (Ft/l)': '',
-      'RĂ¶gzĂ­tett amortizĂˇciĂł (Ft/km)': amortizationRate,
-      'ĂśzemanyagkĂ¶ltsĂ©g (Ft)': Math.round(totals.fuelCost),
-      'AmortizĂˇciĂł (Ft)': Math.round(totals.amortization),
-      'SzĂˇmolt tĂ©rĂ­tĂ©s (Ft)': Math.round(totals.total),
+      'Fogyaszt\u00e1si norma (l/100km)': '',
+      'NAV \u00fczemanyag\u00e1r (Ft/l)': '',
+      'R\u00f6gz\u00edtett amortiz\u00e1ci\u00f3 (Ft/km)': amortizationRate,
+      '\u00dczemanyagk\u00f6lts\u00e9g (Ft)': Math.round(totals.fuelCost),
+      'Amortiz\u00e1ci\u00f3 (Ft)': Math.round(totals.amortization),
+      'Sz\u00e1molt t\u00e9r\u00edt\u00e9s (Ft)': Math.round(totals.total),
     });
 
     const worksheet = XLSX.utils.json_to_sheet(rows);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Ăśzemanyag elszĂˇmolĂˇs');
+    XLSX.utils.book_append_sheet(workbook, worksheet, '\u00dczemanyag elsz\u00e1mol\u00e1s');
 
     const fromLabel = exportFrom || 'kezdet';
-    const toLabel = exportTo || 'vĂ©ge';
+    const toLabel = exportTo || 'v\u00e9ge';
     const nameLabel = employeeFilter.trim() ? employeeFilter.trim().replace(/\s+/g, '-') : 'mindenki';
-    XLSX.writeFile(workbook, `ĂĽzemanyag-elszĂˇmolĂˇs_${nameLabel}_${fromLabel}_${toLabel}.xlsx`);
+    XLSX.writeFile(workbook, `\u00fczemanyag-elsz\u00e1mol\u00e1s_${nameLabel}_${fromLabel}_${toLabel}.xlsx`);
   };
 
   return (
@@ -261,7 +260,7 @@ export default function FuelExpenseTracker({ owner }: { owner: string }) {
           <div className={`transition-transform duration-300 ${isOpen ? 'rotate-180' : 'rotate-0'}`}>
             {isOpen ? <ChevronUp className="text-white/50" /> : <ChevronDown className="text-white/50" />}
           </div>
-          <h2 className="text-xl font-black uppercase italic tracking-wider text-white">ĂśZEMANYAG ELSZĂMOLĂS</h2>
+          <h2 className="text-xl font-black uppercase italic tracking-wider text-white">\u00dcZEMANYAG ELSZ\u00c1MOL\u00c1S</h2>
         </div>
         <CarFront size={20} className="text-white/30" />
       </div>
@@ -277,25 +276,25 @@ export default function FuelExpenseTracker({ owner }: { owner: string }) {
           >
             <div className="space-y-4">
               <div className="grid gap-2 sm:grid-cols-2">
-                <input className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-white outline-none placeholder:text-white/20" placeholder="DolgozĂł neve" value={form.employeeName} onChange={(e) => setForm((prev) => ({ ...prev, employeeName: e.target.value }))} />
+                <input className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-white outline-none placeholder:text-white/20" placeholder="Dolgoz\u00f3 neve" value={form.employeeName} onChange={(e) => setForm((prev) => ({ ...prev, employeeName: e.target.value }))} />
                 <input className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-white outline-none placeholder:text-white/20" type="date" value={form.date} onChange={(e) => setForm((prev) => ({ ...prev, date: e.target.value }))} />
-                <input className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-white outline-none placeholder:text-white/20 sm:col-span-2" placeholder="Honnan â†’ hova" value={form.route} onChange={(e) => setForm((prev) => ({ ...prev, route: e.target.value }))} />
-                <input className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-white outline-none placeholder:text-white/20" placeholder="CĂ©l / feladat" value={form.purpose} onChange={(e) => setForm((prev) => ({ ...prev, purpose: e.target.value }))} />
-                <input className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-white outline-none placeholder:text-white/20" placeholder="AutĂł rendszĂˇma" value={form.licensePlate} onChange={(e) => setForm((prev) => ({ ...prev, licensePlate: e.target.value }))} />
+                <input className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-white outline-none placeholder:text-white/20 sm:col-span-2" placeholder="Honnan \u2192 hova" value={form.route} onChange={(e) => setForm((prev) => ({ ...prev, route: e.target.value }))} />
+                <input className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-white outline-none placeholder:text-white/20" placeholder="C\u00e9l / feladat" value={form.purpose} onChange={(e) => setForm((prev) => ({ ...prev, purpose: e.target.value }))} />
+                <input className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-white outline-none placeholder:text-white/20" placeholder="Aut\u00f3 rendsz\u00e1ma" value={form.licensePlate} onChange={(e) => setForm((prev) => ({ ...prev, licensePlate: e.target.value }))} />
                 <input className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-white outline-none placeholder:text-white/20" placeholder="Km" value={form.distanceKm} onChange={(e) => setForm((prev) => ({ ...prev, distanceKm: e.target.value }))} />
-                <input className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-white outline-none placeholder:text-white/20" placeholder="FogyasztĂˇsi norma (l/100km)" value={form.consumptionLitersPer100Km} onChange={(e) => setForm((prev) => ({ ...prev, consumptionLitersPer100Km: e.target.value }))} />
+                <input className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-white outline-none placeholder:text-white/20" placeholder="Fogyaszt\u00e1si norma (l/100km)" value={form.consumptionLitersPer100Km} onChange={(e) => setForm((prev) => ({ ...prev, consumptionLitersPer100Km: e.target.value }))} />
                 <div className="flex gap-2">
-                  <input className="w-full rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-white outline-none placeholder:text-white/20" placeholder="NAV ĂĽzemanyagĂˇr (Ft/l)" value={form.navFuelPriceFtPerLiter} onChange={(e) => setForm((prev) => ({ ...prev, navFuelPriceFtPerLiter: e.target.value }))} />
+                  <input className="w-full rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-white outline-none placeholder:text-white/20" placeholder="NAV \u00fczemanyag\u00e1r (Ft/l)" value={form.navFuelPriceFtPerLiter} onChange={(e) => setForm((prev) => ({ ...prev, navFuelPriceFtPerLiter: e.target.value }))} />
                   <button type="button" onClick={handleFetchNavPrice} disabled={navLoading} className="rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-black uppercase tracking-widest text-white hover:bg-white/10 disabled:opacity-50">
                     {navLoading ? '...' : 'NAV'}
                   </button>
                 </div>
-                <input className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-white outline-none placeholder:text-white/20" placeholder="AmortizĂˇciĂł (Ft/km)" value={form.amortizationFtPerKm} onChange={(e) => setForm((prev) => ({ ...prev, amortizationFtPerKm: e.target.value }))} />
+                <input className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-white outline-none placeholder:text-white/20" placeholder="Amortiz\u00e1ci\u00f3 (Ft/km)" value={form.amortizationFtPerKm} onChange={(e) => setForm((prev) => ({ ...prev, amortizationFtPerKm: e.target.value }))} />
               </div>
 
               <div className="flex flex-wrap gap-2">
                 <button onClick={handleAddEntry} className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-black uppercase tracking-widest text-black hover:bg-emerald-400">
-                  <Plus size={16} /> TĂ©tel hozzĂˇadĂˇsa
+                  <Plus size={16} /> T\u00e9tel hozz\u00e1ad\u00e1sa
                 </button>
                 <button onClick={handleExport} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black uppercase tracking-widest text-white hover:bg-white/10">
                   <Download size={16} /> Export XLSX
@@ -304,29 +303,29 @@ export default function FuelExpenseTracker({ owner }: { owner: string }) {
 
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                 <input className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-white outline-none placeholder:text-white/20" placeholder="Intervallum kezdete" type="date" value={exportFrom} onChange={(e) => setExportFrom(e.target.value)} />
-                <input className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-white outline-none placeholder:text-white/20" placeholder="Intervallum vĂ©ge" type="date" value={exportTo} onChange={(e) => setExportTo(e.target.value)} />
-                <input className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-white outline-none placeholder:text-white/20 lg:col-span-2" placeholder="DolgozĂł nĂ©v szĹ±rĹ‘" value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)} />
+                <input className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-white outline-none placeholder:text-white/20" placeholder="Intervallum v\u00e9ge" type="date" value={exportTo} onChange={(e) => setExportTo(e.target.value)} />
+                <input className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-white outline-none placeholder:text-white/20 lg:col-span-2" placeholder="Dolgoz\u00f3 n\u00e9v sz\u0171r\u0151" value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)} />
               </div>
 
               {navInfo ? <p className="text-xs text-white/70">{navInfo}</p> : null}
               {error ? <p className="text-sm text-rose-200">{error}</p> : null}
 
               <div className="grid gap-2 rounded-2xl border border-white/10 bg-black/20 p-3 sm:grid-cols-4">
-                <div className="text-xs text-white/60">Ă–sszes km<div className="mt-1 text-sm font-black text-white">{hasFilter ? totals.distanceKm.toFixed(1) : '-'}</div></div>
-                <div className="text-xs text-white/60">ĂśzemanyagkĂ¶ltsĂ©g<div className="mt-1 text-sm font-black text-white">{hasFilter ? `${Math.round(totals.fuelCost)} Ft` : '-'}</div></div>
-                <div className="text-xs text-white/60">AmortizĂˇciĂł<div className="mt-1 text-sm font-black text-white">{hasFilter ? `${Math.round(totals.amortization)} Ft` : '-'}</div></div>
-                <div className="text-xs text-white/60">SzĂˇmolt tĂ©rĂ­tĂ©s<div className="mt-1 text-sm font-black text-emerald-300">{hasFilter ? `${Math.round(totals.total)} Ft` : '-'}</div></div>
+                <div className="text-xs text-white/60">\u00d6sszes km<div className="mt-1 text-sm font-black text-white">{hasFilter ? totals.distanceKm.toFixed(1) : '-'}</div></div>
+                <div className="text-xs text-white/60">\u00dczemanyagk\u00f6lts\u00e9g<div className="mt-1 text-sm font-black text-white">{hasFilter ? `${Math.round(totals.fuelCost)} Ft` : '-'}</div></div>
+                <div className="text-xs text-white/60">Amortiz\u00e1ci\u00f3<div className="mt-1 text-sm font-black text-white">{hasFilter ? `${Math.round(totals.amortization)} Ft` : '-'}</div></div>
+                <div className="text-xs text-white/60">Sz\u00e1molt t\u00e9r\u00edt\u00e9s<div className="mt-1 text-sm font-black text-emerald-300">{hasFilter ? `${Math.round(totals.total)} Ft` : '-'}</div></div>
               </div>
 
               <div className="overflow-x-auto">
                 <table className="min-w-full text-left text-xs text-white/80">
                   <thead>
                     <tr className="border-b border-white/10 text-white/50">
-                      <th className="px-2 py-2">DolgozĂł</th>
-                      <th className="px-2 py-2">DĂˇtum</th>
-                      <th className="px-2 py-2">Ăštvonal</th>
+                      <th className="px-2 py-2">Dolgoz\u00f3</th>
+                      <th className="px-2 py-2">D\u00e1tum</th>
+                      <th className="px-2 py-2">\u00datvonal</th>
                       <th className="px-2 py-2">Km</th>
-                      <th className="px-2 py-2">TĂ©rĂ­tĂ©s</th>
+                      <th className="px-2 py-2">T\u00e9r\u00edt\u00e9s</th>
                       <th className="px-2 py-2" />
                     </tr>
                   </thead>
@@ -351,7 +350,7 @@ export default function FuelExpenseTracker({ owner }: { owner: string }) {
                     {filteredEntries.length === 0 ? (
                       <tr>
                         <td colSpan={6} className="px-2 py-4 text-center text-sm text-white/40">
-                          MĂ©g nincs rĂ¶gzĂ­tett tĂ©tel.
+                          M\u00e9g nincs r\u00f6gz\u00edtett t\u00e9tel.
                         </td>
                       </tr>
                     ) : null}
@@ -365,7 +364,3 @@ export default function FuelExpenseTracker({ owner }: { owner: string }) {
     </div>
   );
 }
-
-
-
-
